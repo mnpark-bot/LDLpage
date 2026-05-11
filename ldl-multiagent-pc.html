@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>LDL 멀티에이전트</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{width:100%;height:100%;overflow:hidden;background:#05060f;font-family:'Noto Sans KR',sans-serif;color:#c8d0e8}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes blink{0%,100%{opacity:1}45%,55%{opacity:0}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes robotArm{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+@keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:#080b18}
+::-webkit-scrollbar-thumb{background:#252b45;border-radius:3px}
+input{font-family:'Noto Sans KR',sans-serif;outline:none}
+button{font-family:'Noto Sans KR',sans-serif;cursor:pointer;transition:all .18s}
+button:hover{opacity:.85}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script>
+(function(){
+"use strict";
+var h = React.createElement;
+var useState = React.useState;
+var useRef = React.useRef;
+var useEffect = React.useEffect;
+
+// ═══ 데이터 ════════════════════════════════════════════════
+var TEAMS = [
+  { id:"exec",      name:"임원실",      icon:"👑", color:"#F59E0B", member:null,
+    agents:[{id:"exec_ai", name:"타워 AI", emoji:"🎯", status:"standby", tasks:["전팀 일일 보고 수신","KPI 이상 감지","주간 통합 요약"]}]
+  },
+  { id:"marketing", name:"마케팅팀",   icon:"📣", color:"#EC4899", member:{name:"박과장",av:"박"},
+    agents:[
+      {id:"mkt1", name:"트렌드봇",  emoji:"📈", status:"idle",    tasks:["시장 트렌드 수집","SNS 모니터링","경쟁사 동향"]},
+      {id:"mkt2", name:"콘텐츠봇", emoji:"✍️", status:"idle",    tasks:["상품 문구 생성","SNS 포스팅","광고 카피"]}
+    ]
+  },
+  { id:"plan",      name:"기획팀",     icon:"💡", color:"#818CF8", member:{name:"박과장",av:"박"},
+    agents:[
+      {id:"plan1", name:"전략봇",  emoji:"🗺️", status:"idle",    tasks:["사업계획 초안","경쟁사 분석","신사업 기획"]},
+      {id:"plan2", name:"보고서봇",emoji:"📄", status:"idle",    tasks:["주간 보고서","회의록 정리","결재 문서"]}
+    ]
+  },
+  { id:"trade",     name:"무역팀",     icon:"🚢", color:"#06B6D4", member:{name:"석과장",av:"석"},
+    agents:[
+      {id:"trd1", name:"OCR봇",   emoji:"📸", status:"running", tasks:["인보이스 OCR","패킹리스트 파싱","선적서류 변환"]},
+      {id:"trd2", name:"통관봇",  emoji:"🛃", status:"idle",    tasks:["HS코드 분류","관세 계산","서류 체크"]},
+      {id:"trd3", name:"발주봇",  emoji:"📦", status:"idle",    tasks:["발주서 생성","납기 추적","재고 연동"]}
+    ]
+  },
+  { id:"online",    name:"온라인팀",   icon:"🛒", color:"#10B981", member:{name:"김과장",av:"김"},
+    agents:[
+      {id:"onl1", name:"알리봇",  emoji:"🔴", status:"running", tasks:["알리 가격 수집","프로모션 감지","판매량 추적"]},
+      {id:"onl2", name:"쿠팡봇",  emoji:"🔵", status:"idle",    tasks:["쿠팡 순위 수집","로켓배송 가격","TOP100 추적"]},
+      {id:"onl3", name:"리뷰봇",  emoji:"⭐", status:"idle",    tasks:["리뷰 수집","부정리뷰 알림","VOC 분석"]}
+    ]
+  },
+  { id:"offline",   name:"오프라인팀", icon:"🏪", color:"#F97316", member:{name:"이과장",av:"이"},
+    agents:[
+      {id:"off1", name:"컴퓨존봇",emoji:"🖥️", status:"idle", tasks:["광고배너 수집","제품 가격 수집","카테고리 분석"],
+       connected:true,
+       script:"C:\\Users\\ahpol\\Desktop\\Agent\\Python\\Compuzone\\컴퓨존_가격수집.py",
+       output:"C:\\Users\\ahpol\\Desktop\\Agent\\Python\\compuzone\\컴퓨존_가격수집.xlsx",
+       drive:"1ff34kOGIAqUsRb3tgiY77WwM1VVbjhtY",
+       schedule:"매일 08:30",
+       categories:["모니터암","모니터거치대","노트북거치대"],
+       maxPages:3
+      },
+      {id:"off2", name:"네이버봇",emoji:"🟢", status:"idle",    tasks:["원부 최저가","MAP 위반 감지","판매처 추적"]},
+      {id:"off3", name:"제안서봇",emoji:"📋", status:"idle",    tasks:["PPT 제안서","가격표 업데이트","맞춤 제안서"]}
+    ]
+  },
+  { id:"finance",   name:"재무회계팀", icon:"💰", color:"#A78BFA", member:{name:"최대리",av:"최"},
+    agents:[
+      {id:"fin1", name:"전표봇",  emoji:"🧾", status:"idle",    tasks:["매입전표 OCR","영수증 분류","ERP 자동입력"]},
+      {id:"fin2", name:"보고봇",  emoji:"📊", status:"running", tasks:["ERPia 다운로드","실적보고서 생성","KPI 업데이트"]},
+      {id:"fin3", name:"발송봇",  emoji:"📧", status:"idle",    tasks:["Gmail 발송","Drive 업로드","카카오 알림"]}
+    ]
+  },
+  { id:"analytics", name:"분석·문서팀",icon:"📐", color:"#34D399", member:null,
+    agents:[
+      {id:"ana1", name:"ERP봇",   emoji:"🏭", status:"running", tasks:["매입원장 다운로드","매출원장 다운로드","재고 다운로드"]},
+      {id:"ana2", name:"SQL봇",   emoji:"🗄️", status:"idle",    tasks:["브랜드별 집계","부진재고 분류","영업 실적 분석"]},
+      {id:"ana3", name:"문서봇",  emoji:"📑", status:"idle",    tasks:["임원보고서 생성","주간 Excel","계약서 초안"]}
+    ]
+  }
+];
+
+var FLOWS = [
+  {from:"trade",    to:"finance",   color:"#06B6D4"},
+  {from:"online",   to:"analytics", color:"#10B981"},
+  {from:"offline",  to:"analytics", color:"#F97316"},
+  {from:"finance",  to:"exec",      color:"#A78BFA"},
+  {from:"analytics",to:"exec",      color:"#34D399"},
+  {from:"plan",     to:"exec",      color:"#818CF8"},
+  {from:"marketing",to:"exec",      color:"#EC4899"}
+];
+
+var TICKERS = [
+  "🔵 쿠팡봇 — TOP100 수집 완료",
+  "🟢 네이버봇 — MAP 위반 0건",
+  "🏭 ERP봇 — 매출원장 다운로드 완료 (3,421행)",
+  "📸 OCR봇 — 인보이스 12건 처리 완료",
+  "📊 보고봇 — 임원 실적보고서 생성 중",
+  "🔴 알리봇 — 가격 변동 감지: 3건",
+  "🖥️ 컴퓨존봇 — 광고배너 47개 수집",
+  "⭐ 리뷰봇 — 부정리뷰 1건 감지",
+  "📧 발송봇 — Gmail 발송 완료"
+];
+
+// ═══ 로봇 SVG ═══════════════════════════════════════════════
+function Robot(props) {
+  var color = props.color;
+  var running = props.running;
+  var size = props.size || 50;
+  var floatAnim = running ? "float 2s ease-in-out infinite" : "none";
+  var glowFilter = running ? ("drop-shadow(0 0 5px " + color + ")") : "none";
+  var armAnim = running ? "robotArm 1s ease-in-out infinite" : "none";
+
+  return h("svg", {
+    width: size, height: Math.round(size * 1.3),
+    viewBox: "0 0 56 73",
+    style: { animation: floatAnim, filter: glowFilter, flexShrink: 0 }
+  },
+    h("line", {x1:"28",y1:"4",x2:"28",y2:"12",stroke:color,strokeWidth:"1.5"}),
+    h("circle", {cx:"28",cy:"3",r:"2.5",fill:color,
+      style:{animation: running ? "pulse 1s infinite" : "none"}}),
+    h("rect", {x:"14",y:"12",width:"28",height:"22",rx:"5",
+      fill:color+"22",stroke:color,strokeWidth:"1.2"}),
+    h("circle", {cx:"22",cy:"22",r:"4",fill:color+"33",stroke:color,strokeWidth:"1"}),
+    h("circle", {cx:"34",cy:"22",r:"4",fill:color+"33",stroke:color,strokeWidth:"1"}),
+    h("circle", {cx:"22",cy:"22",r:"2",fill:color,
+      style:{animation: running ? "pulse 0.8s infinite" : "none"}}),
+    h("circle", {cx:"34",cy:"22",r:"2",fill:color,
+      style:{animation: running ? "pulse 0.8s 0.4s infinite" : "none"}}),
+    running
+      ? h("rect", {x:"20",y:"30",width:"16",height:"2",rx:"1",fill:color,
+          style:{animation:"blink 0.5s infinite"}})
+      : h("path", {d:"M20 29 Q28 33 36 29",stroke:color,strokeWidth:"1.5",fill:"none"}),
+    h("rect", {x:"24",y:"34",width:"8",height:"4",rx:"1",fill:color+"44",stroke:color,strokeWidth:"1"}),
+    h("rect", {x:"10",y:"38",width:"36",height:"24",rx:"5",fill:color+"18",stroke:color,strokeWidth:"1.2"}),
+    h("rect", {x:"16",y:"43",width:"24",height:"13",rx:"3",fill:color+"28",stroke:color,strokeWidth:"1"}),
+    running && h("rect", {x:"18",y:"46",width:"12",height:"2",rx:"1",fill:color,opacity:".7",
+      style:{animation:"blink 0.7s infinite"}}),
+    running && h("rect", {x:"18",y:"50",width:"8",height:"2",rx:"1",fill:color,opacity:".5",
+      style:{animation:"blink 0.9s 0.3s infinite"}}),
+    h("rect", {x:"2",y:"40",width:"8",height:"16",rx:"4",fill:color+"18",stroke:color,strokeWidth:"1",
+      style:{animation:armAnim,transformOrigin:"6px 40px"}}),
+    h("rect", {x:"46",y:"40",width:"8",height:"16",rx:"4",fill:color+"18",stroke:color,strokeWidth:"1",
+      style:{animation:armAnim.replace("1s","1s 0.5s"),transformOrigin:"50px 40px"}}),
+    h("rect", {x:"16",y:"62",width:"9",height:"8",rx:"3",fill:color+"18",stroke:color,strokeWidth:"1"}),
+    h("rect", {x:"31",y:"62",width:"9",height:"8",rx:"3",fill:color+"18",stroke:color,strokeWidth:"1"})
+  );
+}
+
+// ═══ 데스크 유닛 ════════════════════════════════════════════
+function DeskUnit(props) {
+  var agent = props.agent;
+  var tc = props.teamColor;
+  var onClick = props.onClick;
+  var selected = props.selected;
+  var running = agent.status === "running";
+
+  var tickState = useState(0);
+  var tick = tickState[0];
+  var setTick = tickState[1];
+
+  useEffect(function() {
+    if (!running) return;
+    var t = setInterval(function() { setTick(function(x) { return x + 1; }); }, 900);
+    return function() { clearInterval(t); };
+  }, [running]);
+
+  var bars = [70, 45, 80, 35];
+
+  return h("div", {
+    onClick: function() { onClick(agent); },
+    style: {
+      display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+      padding:"8px 6px", borderRadius:10, cursor:"pointer", minWidth:86,
+      background: selected ? tc+"18" : "transparent",
+      border: "1.5px solid " + (selected || running ? tc+"50" : "transparent"),
+      transition:"all .2s", position:"relative",
+      boxShadow: running ? ("0 0 14px " + tc + "22") : "none"
+    }
+  },
+    h("div", {style:{
+      position:"absolute", top:5, right:5, width:7, height:7, borderRadius:"50%",
+      background: running ? tc : "#2d3050",
+      animation: running ? "pulse 0.8s infinite" : "none",
+      boxShadow: running ? ("0 0 5px " + tc) : "none"
+    }}),
+    h(Robot, {color:tc, running:running, size:48}),
+    h("div", {style:{
+      width:78, height:5, borderRadius:"3px 3px 0 0",
+      background:tc+"22", border:"1px solid "+tc+"44"
+    }}),
+    h("div", {style:{
+      width:60, height:32, borderRadius:5, marginTop:-1,
+      background:tc+"10", border:"1px solid "+tc+"2e",
+      overflow:"hidden", display:"flex", flexDirection:"column",
+      justifyContent:"center", alignItems:"center"
+    }},
+      running
+        ? h("div", {style:{padding:"3px 5px", width:"100%"}},
+            bars.map(function(w, i) {
+              return h("div", {key:i, style:{
+                height:2, borderRadius:1, width:w+"%",
+                background:tc, opacity:0.35+i*0.15, marginBottom:3,
+                animation:"blink "+(0.6+i*0.2)+"s "+(i*0.15)+"s infinite"
+              }});
+            })
+          )
+        : h("div", {style:{fontSize:7, color:tc, opacity:.3}}, "STANDBY")
+    ),
+    h("div", {style:{
+      fontSize:8, fontWeight:700, color: running ? tc : tc+"55",
+      textAlign:"center", lineHeight:1.2, marginTop:2
+    }}, agent.name),
+    running && h("div", {style:{
+      fontSize:7, color:tc, opacity:.6,
+      textAlign:"center", maxWidth:80,
+      overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"
+    }}, agent.tasks[tick % agent.tasks.length])
+  );
+}
+
+// ═══ 사무실 방 ══════════════════════════════════════════════
+function OfficeRoom(props) {
+  var team = props.team;
+  var onAgentClick = props.onAgentClick;
+  var selectedAgent = props.selectedAgent;
+  var onRoomClick = props.onRoomClick;
+  var selected = props.selected;
+  var runCount = team.agents.filter(function(a) { return a.status === "running"; }).length;
+
+  return h("div", {
+    style: {
+      border: "1.5px solid " + (selected ? team.color : team.color+"25"),
+      borderRadius:13, padding:"9px 10px",
+      background: selected ? team.color+"0a" : team.color+"05",
+      transition:"all .22s", position:"relative", overflow:"hidden",
+      boxShadow: selected ? ("0 0 22px " + team.color + "1e") : "none",
+      minHeight:185
+    }
+  },
+    h("div", {style:{
+      position:"absolute", top:0, left:"15%", right:"15%", height:2,
+      background:"linear-gradient(90deg,transparent,"+team.color+(selected?"70":"30")+",transparent)",
+      borderRadius:4
+    }}),
+    h("div", {style:{
+      position:"absolute", inset:0, opacity:.025, pointerEvents:"none",
+      backgroundImage:"linear-gradient("+team.color+" 1px,transparent 1px),linear-gradient(90deg,"+team.color+" 1px,transparent 1px)",
+      backgroundSize:"20px 20px"
+    }}),
+    h("div", {
+      onClick: function() { onRoomClick(team); },
+      style:{display:"flex", alignItems:"center", gap:6, marginBottom:9, position:"relative", cursor:"pointer"}
+    },
+      h("div", {style:{
+        width:26, height:26, borderRadius:7,
+        background:team.color+"1e", border:"1px solid "+team.color+"3a",
+        display:"flex", alignItems:"center", justifyContent:"center", fontSize:13
+      }}, team.icon),
+      h("div", {style:{flex:1}},
+        h("div", {style:{fontSize:11, fontWeight:900, color:team.color}}, team.name),
+        team.member && h("div", {style:{fontSize:8, color:team.color, opacity:.5}}, team.member.name)
+      ),
+      runCount > 0 && h("div", {style:{
+        background:team.color+"20", border:"1px solid "+team.color+"3a",
+        borderRadius:9, padding:"2px 6px", fontSize:8, color:team.color,
+        display:"flex", gap:3, alignItems:"center"
+      }},
+        h("div", {style:{width:4,height:4,borderRadius:"50%",background:team.color,animation:"pulse .8s infinite"}}),
+        "작업중 " + runCount
+      )
+    ),
+    h("div", {style:{display:"flex", gap:2, flexWrap:"wrap", justifyContent:"center", position:"relative"}},
+      team.agents.map(function(agent) {
+        return h(DeskUnit, {
+          key:agent.id, agent:agent, teamColor:team.color,
+          onClick:function(a) { onAgentClick(a, team); },
+          selected: selectedAgent && selectedAgent.id === agent.id
+        });
+      })
+    ),
+    h("div", {style:{
+      position:"absolute", bottom:0, left:0, right:0, height:1.5,
+      background:"linear-gradient(90deg,transparent,"+team.color+"3a,transparent)"
+    }})
+  );
+}
+
+// ═══ 배치파일 다운로드 유틸 ═════════════════════════════════
+function downloadFile(content, filename) {
+  var blob = new Blob([content], {type:"text/plain;charset=utf-8"});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function makeCompuzoneBat() {
+  return "@echo off\r\nchcp 65001 > nul\r\necho.\r\necho  ╔══════════════════════════════════════╗\r\necho  ║   LDL 컴퓨존 크롤링 에이전트 실행    ║\r\necho  ╚══════════════════════════════════════╝\r\necho.\r\necho  [1/2] 로그 폴더 확인...\r\nif not exist \"C:\\Users\\ahpol\\Desktop\\Agent\\logs\" mkdir \"C:\\Users\\ahpol\\Desktop\\Agent\\logs\"\r\n\r\necho  [2/2] 컴퓨존 크롤링 시작...\r\necho  스크립트: C:\\Users\\ahpol\\Desktop\\Agent\\Python\\Compuzone\\컴퓨존_가격수집.py\r\necho.\r\n\r\npython \"C:\\Users\\ahpol\\Desktop\\Agent\\Python\\Compuzone\\컴퓨존_가격수집.py\" >> \"C:\\Users\\ahpol\\Desktop\\Agent\\logs\\compuzone.log\" 2>&1\r\n\r\nif %errorlevel% == 0 (\r\n    echo  ✅ 크롤링 완료! 결과 파일:\r\n    echo     C:\\Users\\ahpol\\Desktop\\Agent\\Python\\compuzone\\컴퓨존_가격수집.xlsx\r\n    echo     Google Drive 자동 업로드 완료\r\n) else (\r\n    echo  ❌ 오류 발생. 로그 확인:\r\n    echo     C:\\Users\\ahpol\\Desktop\\Agent\\logs\\compuzone.log\r\n)\r\necho.\r\npause\r\n";
+}
+
+function makeCompuzoneSchedulerXml() {
+  return "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\r\n<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\r\n  <RegistrationInfo>\r\n    <Description>LDL 컴퓨존 가격 수집 - 매일 08:30 자동 실행</Description>\r\n    <Author>LDL_AgentHub</Author>\r\n  </RegistrationInfo>\r\n  <Triggers>\r\n    <CalendarTrigger>\r\n      <StartBoundary>2026-01-01T08:30:00</StartBoundary>\r\n      <Enabled>true</Enabled>\r\n      <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>\r\n    </CalendarTrigger>\r\n  </Triggers>\r\n  <Principals>\r\n    <Principal id=\"Author\">\r\n      <LogonType>InteractiveToken</LogonType>\r\n      <RunLevel>HighestAvailable</RunLevel>\r\n    </Principal>\r\n  </Principals>\r\n  <Settings>\r\n    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>\r\n    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\r\n    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\r\n    <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>\r\n  </Settings>\r\n  <Actions Context=\"Author\">\r\n    <Exec>\r\n      <Command>python</Command>\r\n      <Arguments>\"C:\\Users\\ahpol\\Desktop\\Agent\\Python\\Compuzone\\컴퓨존_가격수집.py\"</Arguments>\r\n      <WorkingDirectory>C:\\Users\\ahpol\\Desktop\\Agent\\Python\\Compuzone\\</WorkingDirectory>\r\n    </Exec>\r\n  </Actions>\r\n</Task>\r\n";
+}
+
+// ═══ 컴퓨존봇 전용 패널 ══════════════════════════════════════
+var COMPUZONE_LOG_STEPS = [
+  {delay:0,    msg:"🔧 Chrome 드라이버 초기화 중...",         c:"#888"},
+  {delay:1200, msg:"🌐 컴퓨존 카테고리 1 접속 중...",          c:"#F97316"},
+  {delay:2400, msg:"  📄 페이지 1 수집 중...",                c:"#888"},
+  {delay:3600, msg:"  🔍 경계 마커 발견: '추천순' (y=420)",    c:"#F97316"},
+  {delay:4800, msg:"  → 12개 제품 발견 (광고 4 / 일반 8)",     c:"#10B981"},
+  {delay:5600, msg:"  📄 페이지 2 수집 중...",                c:"#888"},
+  {delay:6800, msg:"  → 11개 제품 발견",                      c:"#10B981"},
+  {delay:7600, msg:"  📄 페이지 3 수집 중...",                c:"#888"},
+  {delay:8800, msg:"  → 10개 제품 발견",                      c:"#10B981"},
+  {delay:9600, msg:"🌐 컴퓨존 카테고리 2 접속 중...",          c:"#F97316"},
+  {delay:10800,msg:"  → 총 28개 수집 완료",                   c:"#10B981"},
+  {delay:11600,msg:"🌐 컴퓨존 카테고리 3 접속 중...",          c:"#F97316"},
+  {delay:12800,msg:"  → 총 25개 수집 완료",                   c:"#10B981"},
+  {delay:13600,msg:"💾 엑셀 저장 중...",                      c:"#888"},
+  {delay:14400,msg:"  시트 [260508_1] 생성 완료 (광고 4 / 제품 24)", c:"#10B981"},
+  {delay:14800,msg:"  시트 [260508_2] 생성 완료 (광고 3 / 제품 25)", c:"#10B981"},
+  {delay:15200,msg:"  시트 [260508_3] 생성 완료 (광고 3 / 제품 22)", c:"#10B981"},
+  {delay:16000,msg:"☁ Google Drive 업로드 중...",             c:"#888"},
+  {delay:17200,msg:"✅ Drive 업로드 완료!",                   c:"#10B981"},
+  {delay:17600,msg:"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",  c:"#333"},
+  {delay:17800,msg:"🏁 컴퓨존 크롤링 완료",                   c:"#F97316"},
+  {delay:18000,msg:"   총 3 카테고리 / 71개 제품 / 10개 광고",c:"#10B981"},
+  {delay:18200,msg:"   소요시간: 약 18초 (시뮬레이션)",        c:"#888"},
+];
+
+function CompuzonePanel(props) {
+  var agent = props.agent;
+  var team = props.team;
+  var onClose = props.onClose;
+  var isRunning = props.isRunning;
+  var onStartRun = props.onStartRun;
+  var onFinishRun = props.onFinishRun;
+
+  var tabState = useState("info"); var tab = tabState[0]; var setTab = tabState[1];
+  var logsState = useState([]); var logs = logsState[0]; var setLogs = logsState[1];
+  var resultState = useState(null); var result = resultState[0]; var setResult = resultState[1];
+  var progressState = useState(0); var progress = progressState[0]; var setProgress = progressState[1];
+  var logRef = useRef(null);
+  var timerRef = useRef([]);
+
+  useEffect(function() {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [logs]);
+
+  useEffect(function() {
+    return function() { timerRef.current.forEach(function(t){ clearTimeout(t); }); };
+  }, []);
+
+  function startSimulation() {
+    onStartRun();
+    setLogs([]);
+    setResult(null);
+    setProgress(0);
+    setTab("log");
+    timerRef.current.forEach(function(t){ clearTimeout(t); });
+    timerRef.current = [];
+
+    COMPUZONE_LOG_STEPS.forEach(function(step) {
+      var t = setTimeout(function() {
+        var now = new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+        setLogs(function(p){ return p.concat([{t:now, msg:step.msg, c:step.c}]); });
+        setProgress(Math.round((step.delay / 18200) * 100));
+      }, step.delay);
+      timerRef.current.push(t);
+    });
+
+    var doneT = setTimeout(function() {
+      setProgress(100);
+      setResult({
+        totalCats:3, totalProducts:71, totalAds:10,
+        sheets:["260508_1","260508_2","260508_3"],
+        driveUrl:"https://drive.google.com/file/d/1ff34kOGIAqUsRb3tgiY77WwM1VVbjhtY",
+        excelPath:"C:\\Users\\ahpol\\Desktop\\Agent\\Python\\compuzone\\컴퓨존_가격수집.xlsx",
+        time:new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})
+      });
+      onFinishRun();
+      setTab("result");
+    }, 18400);
+    timerRef.current.push(doneT);
+  }
+
+  var c = team.color;
+
+  return h("div", {style:{display:"flex",flexDirection:"column",height:"100%",background:c+"07",animation:"slideIn .3s ease"}},
+
+    // 헤더
+    h("div", {style:{padding:"11px 13px",background:c+"12",borderBottom:"1px solid "+c+"22",display:"flex",alignItems:"center",gap:9}},
+      h(Robot, {color:c, running:isRunning, size:36}),
+      h("div", {style:{flex:1}},
+        h("div", {style:{fontSize:13,fontWeight:900,color:c}}, "컴퓨존봇"),
+        h("div", {style:{fontSize:8,color:c,opacity:.5,fontFamily:"'Share Tech Mono',monospace"}}, "COMPUZONE CRAWLER · CONNECTED")
+      ),
+      h("div", {style:{display:"flex",alignItems:"center",gap:5}},
+        h("div", {style:{width:7,height:7,borderRadius:"50%",background:isRunning?c:"#10B981",animation:isRunning?"pulse .8s infinite":"glow 2s infinite",boxShadow:"0 0 5px "+(isRunning?c:"#10B981")}}),
+        h("span", {style:{fontSize:8,color:isRunning?c:"#10B981",fontFamily:"'Share Tech Mono',monospace"}}, isRunning?"RUNNING":"CONNECTED")
+      ),
+      h("button", {onClick:onClose, style:{background:"none",border:"none",color:"#555",fontSize:13,padding:"2px 4px"}}, "✕")
+    ),
+
+    // 탭
+    h("div", {style:{display:"flex",borderBottom:"1px solid "+c+"18",background:"#080810",flexShrink:0}},
+      ["info","log","result","deploy"].map(function(t2) {
+        var labels = {info:"📋 정보", log:"📟 로그", result:"📊 결과", deploy:"🚀 배포"};
+        return h("button", {key:t2, onClick:function(){setTab(t2);}, style:{
+          flex:1, padding:"7px 0", border:"none",
+          background:tab===t2?c+"18":"transparent",
+          color:tab===t2?c:"#445",
+          fontSize:9, fontWeight:tab===t2?700:400,
+          borderBottom:tab===t2?"2px solid "+c:"2px solid transparent",
+          fontFamily:"'Share Tech Mono',monospace"
+        }}, labels[t2]);
+      })
+    ),
+
+    // ── 정보 탭
+    tab==="info" && h("div", {style:{flex:1,overflowY:"auto",padding:"10px 12px"}},
+      // 연결 상태 배지
+      h("div", {style:{
+        background:"#10B98115",border:"1px solid #10B98140",borderRadius:8,
+        padding:"8px 10px",marginBottom:10,display:"flex",alignItems:"center",gap:8
+      }},
+        h("div", {style:{width:8,height:8,borderRadius:"50%",background:"#10B981",animation:"pulse 2s infinite",boxShadow:"0 0 6px #10B981"}}),
+        h("div", null,
+          h("div", {style:{fontSize:10,fontWeight:700,color:"#10B981"}},"실제 스크립트 연결됨"),
+          h("div", {style:{fontSize:8,color:"#10B981",opacity:.6,fontFamily:"'Share Tech Mono',monospace"}},"컴퓨존_가격수집.py")
+        )
+      ),
+      // 스크립트 경로
+      h("div", {style:{fontSize:8,color:c,opacity:.5,marginBottom:4,fontFamily:"'Share Tech Mono',monospace",letterSpacing:".08em"}}, "SCRIPT PATH"),
+      h("div", {style:{background:"#060612",border:"1px solid #1a1a35",borderRadius:7,padding:"7px 9px",marginBottom:10}},
+        h("div", {style:{fontSize:8,color:"#888",fontFamily:"'Share Tech Mono',monospace",wordBreak:"break-all"}},
+          "C:\\Users\\ahpol\\Desktop\\Agent\\Python\\Compuzone\\컴퓨존_가격수집.py"
+        )
+      ),
+      // 수집 카테고리
+      h("div", {style:{fontSize:8,color:c,opacity:.5,marginBottom:4,fontFamily:"'Share Tech Mono',monospace",letterSpacing:".08em"}}, "CATEGORIES (3)"),
+      ["모니터암 (DivNo=2963)","모니터거치대 (DivNo=3733)","노트북거치대 (DivNo=3397)"].map(function(cat,i){
+        return h("div",{key:i,style:{
+          display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:6,marginBottom:3,
+          background:"#0d0d20",border:"1px solid #1a1a35"
+        }},
+          h("div",{style:{width:14,height:14,borderRadius:4,background:c+"25",border:"1px solid "+c+"40",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:c,flexShrink:0}},i+1),
+          h("span",{style:{fontSize:9,color:"#888"}},cat)
+        );
+      }),
+      // 출력 설정
+      h("div", {style:{fontSize:8,color:c,opacity:.5,marginTop:8,marginBottom:4,fontFamily:"'Share Tech Mono',monospace",letterSpacing:".08em"}}, "OUTPUT"),
+      h("div", {style:{background:"#060612",border:"1px solid #1a1a35",borderRadius:7,padding:"7px 9px",marginBottom:6}},
+        h("div",{style:{fontSize:8,color:"#555",fontFamily:"'Share Tech Mono',monospace",marginBottom:3}},"📁 EXCEL"),
+        h("div",{style:{fontSize:8,color:"#777",fontFamily:"'Share Tech Mono',monospace",wordBreak:"break-all"}},
+          "컴퓨존_가격수집.xlsx"),
+        h("div",{style:{fontSize:8,color:"#555",fontFamily:"'Share Tech Mono',monospace",marginTop:5,marginBottom:3}},"☁ DRIVE"),
+        h("div",{style:{fontSize:8,color:"#777",fontFamily:"'Share Tech Mono',monospace"}},
+          "폴더 ID: 1ff34kOG...")
+      ),
+      h("div", {style:{fontSize:8,color:"#555",fontFamily:"'Share Tech Mono',monospace",marginBottom:3}},"⏰ SCHEDULE: 매일 08:30")
+    ),
+
+    // ── 로그 탭
+    tab==="log" && h("div", {style:{flex:1,overflow:"hidden",padding:"10px 12px",display:"flex",flexDirection:"column"}},
+      isRunning && h("div", {style:{marginBottom:8}},
+        h("div", {style:{display:"flex",justifyContent:"space-between",marginBottom:3}},
+          h("span",{style:{fontSize:8,color:c,fontFamily:"'Share Tech Mono',monospace"}},"PROGRESS"),
+          h("span",{style:{fontSize:8,color:c,fontFamily:"'Share Tech Mono',monospace"}},progress+"%")
+        ),
+        h("div", {style:{height:4,background:"#1a1a35",borderRadius:2,overflow:"hidden"}},
+          h("div", {style:{
+            height:"100%",width:progress+"%",borderRadius:2,
+            background:"linear-gradient(90deg,"+c+","+c+"aa)",
+            transition:"width .3s ease",
+            boxShadow:"0 0 8px "+c
+          }})
+        )
+      ),
+      h("div", {ref:logRef, style:{flex:1,overflowY:"auto"}},
+        logs.length===0
+          ? h("div",{style:{fontSize:9,color:"#2a2a4a",textAlign:"center",padding:20,fontFamily:"'Share Tech Mono',monospace"}},"로그 없음 — ▶ 실행을 눌러 시작하세요")
+          : logs.map(function(l,i){
+              return h("div",{key:i,style:{fontSize:8,color:l.c,marginBottom:2,display:"flex",gap:5,fontFamily:"'Share Tech Mono',monospace"}},
+                h("span",{style:{color:"#2d3050",flexShrink:0}},l.t),
+                h("span",null,l.msg)
+              );
+            }),
+        isRunning && h("div",{style:{fontSize:8,color:c,fontFamily:"'Share Tech Mono',monospace",animation:"blink .8s infinite"}},"█")
+      )
+    ),
+
+    // ── 결과 탭
+    tab==="result" && h("div", {style:{flex:1,overflowY:"auto",padding:"10px 12px"}},
+      !result
+        ? h("div",{style:{fontSize:9,color:"#2a2a4a",textAlign:"center",padding:30,fontFamily:"'Share Tech Mono',monospace"}},"아직 실행 결과가 없어요")
+        : h("div", null,
+            h("div", {style:{
+              background:"#10B98112",border:"1px solid #10B98135",borderRadius:9,
+              padding:"10px 12px",marginBottom:10
+            }},
+              h("div",{style:{fontSize:10,fontWeight:700,color:"#10B981",marginBottom:6}},"✅ 수집 완료 — "+result.time),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}},
+                [["카테고리",result.totalCats+"개"],["총 제품",result.totalProducts+"개"],["광고",result.totalAds+"개"]].map(function(x){
+                  return h("div",{key:x[0],style:{background:"#0d0d20",borderRadius:7,padding:"7px 6px",textAlign:"center"}},
+                    h("div",{style:{fontSize:14,fontWeight:900,color:c}}),
+                    h("div",{style:{fontSize:16,fontWeight:900,color:c}},x[1]),
+                    h("div",{style:{fontSize:8,color:"#555"}},x[0])
+                  );
+                })
+              )
+            ),
+            h("div",{style:{fontSize:8,color:c,opacity:.5,marginBottom:5,fontFamily:"'Share Tech Mono',monospace",letterSpacing:".08em"}},"SHEETS"),
+            result.sheets.map(function(s,i){
+              return h("div",{key:i,style:{
+                display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:6,marginBottom:3,
+                background:"#0d0d20",border:"1px solid "+c+"25"
+              }},
+                h("span",{style:{fontSize:9,color:"#555",fontFamily:"'Share Tech Mono',monospace"}},"📄"),
+                h("span",{style:{fontSize:9,color:c,fontFamily:"'Share Tech Mono',monospace"}},s),
+                h("div",{style:{marginLeft:"auto",fontSize:8,color:"#10B981"}},"✓ 저장")
+              );
+            }),
+            h("div",{style:{
+              background:"#0d0d20",border:"1px solid "+c+"25",borderRadius:8,
+              padding:"8px 10px",marginTop:8
+            }},
+              h("div",{style:{fontSize:8,color:"#555",fontFamily:"'Share Tech Mono',monospace",marginBottom:3}},"☁ Google Drive"),
+              h("div",{style:{fontSize:8,color:"#10B981",fontFamily:"'Share Tech Mono',monospace"}},"✅ 업로드 완료"),
+              h("div",{style:{fontSize:7,color:"#444",fontFamily:"'Share Tech Mono',monospace",marginTop:2,wordBreak:"break-all"}},result.driveUrl)
+            )
+          )
+    ),
+
+    // ── 배포 탭
+    tab==="deploy" && h("div", {style:{flex:1,overflowY:"auto",padding:"10px 12px"}},
+      h("div",{style:{fontSize:9,color:"#888",marginBottom:10,lineHeight:1.6}},
+        "아래 파일을 다운로드하여 PC에 설치하면",
+        h("br"),
+        "매일 08:30 자동 실행됩니다."
+      ),
+      [
+        {label:"⬇ 실행 BAT 다운로드",  sub:"더블클릭으로 즉시 실행",       fn:function(){downloadFile(makeCompuzoneBat(),"컴퓨존_크롤링_실행.bat");}},
+        {label:"⬇ 스케줄러 XML 다운로드", sub:"작업 스케줄러 자동 등록",  fn:function(){downloadFile(makeCompuzoneSchedulerXml(),"컴퓨존_스케줄러.xml");}},
+      ].map(function(btn,i){
+        return h("button",{key:i,onClick:btn.fn,style:{
+          width:"100%",marginBottom:7,padding:"10px 12px",border:"1px solid "+c+"40",
+          borderRadius:9,background:c+"12",textAlign:"left",color:c,
+          display:"flex",flexDirection:"column",gap:2
+        }},
+          h("span",{style:{fontSize:11,fontWeight:700}}),
+          h("div",{style:{fontSize:11,fontWeight:700,color:c}},btn.label),
+          h("div",{style:{fontSize:9,color:c,opacity:.55}},btn.sub)
+        );
+      }),
+      h("div",{style:{background:"#060610",border:"1px solid #1a1a35",borderRadius:8,padding:"9px 10px",marginTop:6}},
+        h("div",{style:{fontSize:8,color:"#555",fontFamily:"'Share Tech Mono',monospace",marginBottom:5}},"INSTALL STEPS"),
+        ["1. BAT 파일 저장 → Compuzone 폴더","2. XML 파일 저장 → 같은 폴더","3. BAT 우클릭 → 관리자 권한으로 실행","4. 완료! 매일 08:30 자동 실행"].map(function(s,i){
+          return h("div",{key:i,style:{fontSize:8,color:"#666",marginBottom:3,display:"flex",gap:5,fontFamily:"'Share Tech Mono',monospace"}},
+            h("span",{style:{color:c,flexShrink:0}},">"),
+            h("span",null,s)
+          );
+        })
+      )
+    ),
+
+    // 실행 버튼
+    h("div", {style:{padding:"9px 12px",borderTop:"1px solid "+c+"16",flexShrink:0}},
+      h("button", {
+        onClick:startSimulation, disabled:isRunning,
+        style:{
+          width:"100%",padding:"9px",border:"none",borderRadius:8,
+          background:isRunning?c+"28":("linear-gradient(135deg,"+c+","+c+"99)"),
+          fontSize:11,fontWeight:700,
+          color:isRunning?c+"66":"#000",
+          fontFamily:"'Share Tech Mono',monospace",letterSpacing:".04em"
+        }
+      }, isRunning ? "⏳ 크롤링 실행중... ("+progress+"%)" : "▶ 컴퓨존 크롤링 시작")
+    )
+  );
+}
+
+// ═══ 에이전트 패널 ══════════════════════════════════════════
+function AgentPanel(props) {
+  var agent = props.agent;
+  var team = props.team;
+  var onClose = props.onClose;
+  var onRun = props.onRun;
+  var running = props.running;
+  var isRunning = running.indexOf(agent.id) !== -1;
+
+  // 컴퓨존봇은 전용 패널
+  if (agent.id === "off1") {
+    return h(CompuzonePanel, {
+      agent:agent, team:team, onClose:onClose,
+      isRunning:isRunning,
+      onStartRun:function(){ onRun(agent, team, true); },
+      onFinishRun:function(){ onRun(agent, team, false); }
+    });
+  }
+
+  var logState = useState([
+    {t:"08:30",msg:"에이전트 초기화 완료",c:"#445"},
+    {t:"08:31",msg:"스케줄 로드 완료",c:"#445"}
+  ]);
+  var logs = logState[0];
+  var setLogs = logState[1];
+  var logRef = useRef(null);
+
+  useEffect(function() {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [logs]);
+
+  useEffect(function() {
+    if (!isRunning) return;
+    var msgs = ["데이터 수집 중...","파싱 처리 중...","분석 실행 중...","결과 저장 중..."];
+    var i = 0;
+    var t = setInterval(function() {
+      var now = new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+      setLogs(function(p) { return p.concat([{t:now, msg:msgs[i%msgs.length], c:team.color}]); });
+      i++;
+    }, 900);
+    return function() { clearInterval(t); };
+  }, [isRunning]);
+
+  return h("div", {style:{
+    display:"flex", flexDirection:"column", height:"100%",
+    background:team.color+"07", animation:"slideIn .3s ease"
+  }},
+    h("div", {style:{
+      padding:"11px 13px", background:team.color+"10",
+      borderBottom:"1px solid "+team.color+"20",
+      display:"flex", alignItems:"center", gap:9
+    }},
+      h(Robot, {color:team.color, running:isRunning, size:36}),
+      h("div", {style:{flex:1}},
+        h("div", {style:{fontSize:13, fontWeight:900, color:team.color}}, agent.name),
+        h("div", {style:{fontSize:9, color:team.color, opacity:.45, fontFamily:"'Share Tech Mono',monospace"}}, team.name)
+      ),
+      h("div", {style:{display:"flex",alignItems:"center",gap:5}},
+        h("div", {style:{width:6,height:6,borderRadius:"50%",
+          background:isRunning?team.color:"#334",
+          animation:isRunning?"pulse .8s infinite":"none"}}),
+        h("span", {style:{fontSize:9,color:isRunning?team.color:"#555",fontFamily:"'Share Tech Mono',monospace"}},
+          isRunning ? "RUNNING" : "STANDBY")
+      ),
+      h("button", {onClick:onClose, style:{background:"none",border:"none",color:"#555",fontSize:13,padding:"2px 4px"}}, "✕")
+    ),
+    h("div", {style:{padding:"9px 12px", borderBottom:"1px solid "+team.color+"14"}},
+      h("div", {style:{fontSize:8,color:team.color,opacity:.4,marginBottom:5,fontFamily:"'Share Tech Mono',monospace",letterSpacing:".1em"}}, "TASK LIST"),
+      agent.tasks.map(function(t, i) {
+        var act = isRunning && i === 0;
+        return h("div", {key:i, style:{
+          display:"flex", alignItems:"center", gap:5,
+          padding:"5px 7px", borderRadius:6, marginBottom:3,
+          background: act ? team.color+"14" : "#0d0d20",
+          border:"1px solid "+(act ? team.color+"38" : "#1a1a35")
+        }},
+          h("div", {style:{
+            width:15,height:15,borderRadius:4,flexShrink:0,
+            background:act?team.color:"#1a1a35",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:7,color:act?"#000":"#444"
+          }}, act ? "▶" : String(i+1)),
+          h("span", {style:{fontSize:10,color:act?team.color:"#777"}}, t),
+          act && h("div", {style:{marginLeft:"auto",fontSize:8,color:team.color,animation:"blink 1s infinite"}}, "●")
+        );
+      })
+    ),
+    h("div", {style:{flex:1,overflow:"hidden",padding:"9px 12px",display:"flex",flexDirection:"column"}},
+      h("div", {style:{fontSize:8,color:team.color,opacity:.4,marginBottom:4,fontFamily:"'Share Tech Mono',monospace",letterSpacing:".1em"}}, "LOG"),
+      h("div", {ref:logRef, style:{flex:1,overflowY:"auto"}},
+        logs.map(function(l, i) {
+          return h("div", {key:i, style:{fontSize:8,color:l.c,marginBottom:2,display:"flex",gap:5,fontFamily:"'Share Tech Mono',monospace"}},
+            h("span", {style:{color:"#2d3050",flexShrink:0}}, l.t),
+            h("span", null, l.msg)
+          );
+        }),
+        isRunning && h("div", {style:{fontSize:8,color:team.color,fontFamily:"'Share Tech Mono',monospace",animation:"blink .8s infinite"}}, "█")
+      )
+    ),
+    h("div", {style:{padding:"9px 12px",borderTop:"1px solid "+team.color+"16"}},
+      h("button", {
+        onClick:function(){onRun(agent,team);},
+        disabled:isRunning,
+        style:{
+          width:"100%",padding:"9px",border:"none",borderRadius:8,
+          background:isRunning?team.color+"28":("linear-gradient(135deg,"+team.color+","+team.color+"99)"),
+          fontSize:11,fontWeight:700,
+          color:isRunning?team.color+"66":"#000",
+          fontFamily:"'Share Tech Mono',monospace",letterSpacing:".04em"
+        }
+      }, isRunning ? "⏳ RUNNING..." : "▶ EXECUTE")
+    )
+  );
+}
+
+// ═══ 채팅 패널 ══════════════════════════════════════════════
+function ChatPanel(props) {
+  var team = props.team;
+  var onClose = props.onClose;
+
+  var runningNames = team.agents.filter(function(a){return a.status==="running";}).map(function(a){return a.name;}).join(", ") || "없음";
+  var initText = "안녕하세요! " + team.name + " AI입니다. " + "현재 " + runningNames + " 작동 중입니다. 무엇을 도와드릴까요?";
+
+  var msgsState = useState([{from:"bot", text:initText, t:new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})}]);
+  var msgs = msgsState[0]; var setMsgs = msgsState[1];
+  var inpState = useState(""); var inp = inpState[0]; var setInp = inpState[1];
+  var loadState = useState(false); var loading = loadState[0]; var setLoading = loadState[1];
+  var ref = useRef(null);
+
+  useEffect(function() {
+    if (ref.current) ref.current.scrollIntoView({behavior:"smooth"});
+  }, [msgs]);
+
+  var QUICK = [];
+  team.agents.forEach(function(a){ if(a.tasks[0] && QUICK.length < 3) QUICK.push(a.tasks[0]); });
+
+  function send(text) {
+    if (!text.trim() || loading) return;
+    var now = new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
+    setMsgs(function(p){ return p.concat([{from:"user",text:text,t:now}]); });
+    setInp("");
+    setLoading(true);
+
+    var taskList = team.agents.map(function(a){ return a.tasks.join(", "); }).join(" | ");
+    var sysMsg = "당신은 LDL 회사 " + team.name + " AI 에이전트입니다. " +
+      "담당업무: " + taskList + ". 한국어로 실무적으로 2~3문장 간결하게 답변하고 이모지를 적절히 사용하세요.";
+
+    fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-20250514",
+        max_tokens:300,
+        system:sysMsg,
+        messages:[{role:"user",content:text}]
+      })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var reply = (d.content && d.content[0] && d.content[0].text) ? d.content[0].text : "처리 오류";
+      var t2 = new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
+      setMsgs(function(p){ return p.concat([{from:"bot",text:reply,t:t2}]); });
+    })
+    .catch(function(){
+      setMsgs(function(p){ return p.concat([{from:"bot",text:"⚠ 연결 오류",t:"--:--"}]); });
+    })
+    .finally(function(){ setLoading(false); });
+  }
+
+  return h("div", {style:{display:"flex",flexDirection:"column",height:"100%",background:team.color+"07",animation:"slideIn .3s ease"}},
+    h("div", {style:{padding:"10px 12px",background:team.color+"12",borderBottom:"1px solid "+team.color+"22",display:"flex",alignItems:"center",gap:8}},
+      h("span", {style:{fontSize:18}}, team.icon),
+      h("div", {style:{flex:1}},
+        h("div", {style:{fontSize:12,fontWeight:700,color:team.color}}, team.name + " 채널"),
+        h("div", {style:{fontSize:8,color:team.color,opacity:.4,fontFamily:"'Share Tech Mono',monospace"}}, "LIVE")
+      ),
+      h("div", {style:{display:"flex",alignItems:"center",gap:4}},
+        h("div", {style:{width:5,height:5,borderRadius:"50%",background:"#10B981",animation:"pulse 2s infinite"}}),
+        h("span", {style:{fontSize:9,color:"#10B981"}}, "온라인")
+      ),
+      h("button", {onClick:onClose, style:{background:"none",border:"none",color:"#555",fontSize:14}}, "✕")
+    ),
+    QUICK.length > 0 && h("div", {style:{padding:"5px 8px",display:"flex",gap:4,overflowX:"auto",borderBottom:"1px solid "+team.color+"16",flexShrink:0}},
+      QUICK.map(function(q,i){
+        return h("button",{key:i,onClick:function(){send(q);},style:{
+          background:team.color+"14",border:"1px solid "+team.color+"28",
+          borderRadius:11,padding:"3px 8px",fontSize:8,color:team.color,whiteSpace:"nowrap",flexShrink:0
+        }}, q);
+      })
+    ),
+    h("div", {style:{flex:1,overflowY:"auto",padding:"8px"}},
+      msgs.map(function(m,i){
+        return h("div",{key:i,style:{display:"flex",flexDirection:m.from==="user"?"row-reverse":"row",gap:5,marginBottom:7}},
+          m.from==="bot" && h("div",{style:{width:20,height:20,borderRadius:"50%",flexShrink:0,background:team.color+"28",border:"1px solid "+team.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}},team.icon),
+          h("div",{style:{
+            background:m.from==="user"?team.color+"1c":"#0d0d20",
+            border:"1px solid "+(m.from==="user"?team.color+"36":"#1a1a35"),
+            borderRadius:m.from==="user"?"9px 9px 2px 9px":"9px 9px 9px 2px",
+            padding:"6px 9px",maxWidth:"80%"
+          }},
+            h("div",{style:{fontSize:11,color:m.from==="user"?"#e2e8f0":"#9aa0bc",lineHeight:1.55}},m.text),
+            h("div",{style:{fontSize:8,color:"#2d3050",marginTop:1,textAlign:"right"}},m.t)
+          )
+        );
+      }),
+      loading && h("div",{style:{display:"flex",gap:5}},
+        h("div",{style:{width:20,height:20,borderRadius:"50%",background:team.color+"28",border:"1px solid "+team.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}},team.icon),
+        h("div",{style:{background:"#0d0d20",border:"1px solid #1a1a35",borderRadius:"9px 9px 9px 2px",padding:"8px 12px",display:"flex",gap:3,alignItems:"center"}},
+          [0,1,2].map(function(i){return h("div",{key:i,style:{width:4,height:4,borderRadius:"50%",background:team.color,animation:"pulse 1s "+(i*.2)+"s infinite"}});})
+        )
+      ),
+      h("div",{ref:ref})
+    ),
+    h("div",{style:{padding:"8px",borderTop:"1px solid "+team.color+"16",display:"flex",gap:5}},
+      h("input",{value:inp,onChange:function(e){setInp(e.target.value);},
+        onKeyDown:function(e){if(e.key==="Enter"&&!e.shiftKey){send(inp);}},
+        placeholder:"지시사항 입력...",
+        style:{flex:1,background:"#0a0a18",border:"1px solid "+team.color+"28",borderRadius:8,padding:"7px 9px",fontSize:11,color:"#e2e8f0"}}),
+      h("button",{onClick:function(){send(inp);},disabled:!inp.trim()||loading,style:{
+        background:inp.trim()&&!loading?team.color:"#1a1a35",border:"none",borderRadius:8,width:32,height:32,fontSize:13,color:inp.trim()&&!loading?"#000":"#444"
+      }},"→")
+    )
+  );
+}
+
+// ═══ 메인 앱 ════════════════════════════════════════════════
+function App() {
+  var teamsState = useState(TEAMS); var teams = teamsState[0]; var setTeams = teamsState[1];
+  var selAgentState = useState(null); var selAgent = selAgentState[0]; var setSelAgent = selAgentState[1];
+  var selTeamState = useState(null); var selTeam = selTeamState[0]; var setSelTeam = selTeamState[1];
+  var runningState = useState([]); var running = runningState[0]; var setRunning = runningState[1];
+  var rightModeState = useState(null); var rightMode = rightModeState[0]; var setRightMode = rightModeState[1];
+  var chatTeamState = useState(null); var chatTeam = chatTeamState[0]; var setChatTeam = chatTeamState[1];
+  var logsState = useState([]); var logs = logsState[0]; var setLogs = logsState[1];
+  var timeState = useState(new Date()); var time = timeState[0]; var setTime = timeState[1];
+
+  useEffect(function(){
+    var t = setInterval(function(){ setTime(new Date()); }, 1000);
+    return function(){ clearInterval(t); };
+  }, []);
+
+  function addLog(msg, type) {
+    var colorMap = {info:"#556",success:"#10B981",error:"#EF4444",system:"#F59E0B"};
+    var now = new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+    setLogs(function(p){ return p.slice(-40).concat([{t:now, msg:msg, c:colorMap[type||"info"]}]); });
+  }
+
+  function runAgent(agent, team, startFlag) {
+    // 컴퓨존봇 전용: startFlag=true면 시작, false면 종료
+    if (agent.id === "off1") {
+      if (startFlag === true) {
+        setRunning(function(p){ return p.concat([agent.id]); });
+        setTeams(function(p){ return p.map(function(t){
+          if(t.id!==team.id) return t;
+          return Object.assign({},t,{agents:t.agents.map(function(a){ return a.id===agent.id?Object.assign({},a,{status:"running"}):a; })});
+        }); });
+        addLog("▶ [오프라인팀] 컴퓨존봇 크롤링 시작", "system");
+        addLog("  스크립트: 컴퓨존_가격수집.py", "info");
+        addLog("  카테고리: 모니터암, 모니터거치대, 노트북거치대", "info");
+      } else if (startFlag === false) {
+        setRunning(function(p){ return p.filter(function(id){ return id!==agent.id; }); });
+        setTeams(function(p){ return p.map(function(t){
+          if(t.id!==team.id) return t;
+          return Object.assign({},t,{agents:t.agents.map(function(a){ return a.id===agent.id?Object.assign({},a,{status:"done"}):a; })});
+        }); });
+        addLog("✅ [오프라인팀] 컴퓨존봇 완료 — 71개 제품 / Google Drive 업로드", "success");
+        setTimeout(function(){
+          setTeams(function(p){ return p.map(function(t){
+            if(t.id!==team.id) return t;
+            return Object.assign({},t,{agents:t.agents.map(function(a){ return a.id===agent.id?Object.assign({},a,{status:"idle"}):a; })});
+          }); });
+        }, 5000);
+      }
+      return;
+    }
+    // 일반 에이전트
+    setRunning(function(p){ return p.concat([agent.id]); });
+    setTeams(function(p){
+      return p.map(function(t){
+        if(t.id !== team.id) return t;
+        return Object.assign({}, t, {agents: t.agents.map(function(a){ return a.id===agent.id ? Object.assign({},a,{status:"running"}) : a; })});
+      });
+    });
+    addLog("▶ [" + team.name + "] " + agent.name + " 실행", "system");
+    setTimeout(function(){
+      var ok = Math.random() > 0.07;
+      setRunning(function(p){ return p.filter(function(id){ return id !== agent.id; }); });
+      setTeams(function(p){
+        return p.map(function(t){
+          if(t.id !== team.id) return t;
+          return Object.assign({},t,{agents:t.agents.map(function(a){ return a.id===agent.id ? Object.assign({},a,{status:ok?"done":"error"}) : a; })});
+        });
+      });
+      addLog((ok?"✅":"❌")+" ["+team.name+"] "+agent.name+" "+(ok?"완료":"오류"), ok?"success":"error");
+      setTimeout(function(){
+        setTeams(function(p){
+          return p.map(function(t){
+            if(t.id !== team.id) return t;
+            return Object.assign({},t,{agents:t.agents.map(function(a){ return a.id===agent.id ? Object.assign({},a,{status:"idle"}) : a; })});
+          });
+        });
+      }, 4000);
+    }, 2500 + Math.random()*2000);
+  }
+
+  function handleAgentClick(agent, team){ setSelAgent(agent); setSelTeam(team); setRightMode("agent"); setChatTeam(null); }
+  function handleRoomClick(team){ setChatTeam(team); setRightMode("chat"); setSelAgent(null); }
+
+  var totalRunning = teams.reduce(function(s,t){ return s + t.agents.filter(function(a){return a.status==="running";}).length; }, 0);
+  var totalAgents  = teams.reduce(function(s,t){ return s + t.agents.length; }, 0);
+  var timeStr = time.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  var dateStr = time.toLocaleDateString("ko-KR",{month:"2-digit",day:"2-digit",weekday:"short"});
+
+  return h("div", {style:{width:"100vw",height:"100vh",display:"flex",flexDirection:"column",overflow:"hidden",background:"#05060f"}},
+
+    // 헤더
+    h("div", {style:{height:46,flexShrink:0,background:"#07090f",borderBottom:"1px solid #1a1f35",display:"flex",alignItems:"center",padding:"0 14px",gap:12}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:8,flexShrink:0,width:195}},
+        h("div", {style:{width:30,height:30,borderRadius:9,background:"linear-gradient(135deg,#F59E0B,#EC4899)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}, "⚡"),
+        h("div", null,
+          h("div", {style:{fontSize:14,fontWeight:900,fontFamily:"'Orbitron',sans-serif",letterSpacing:".08em",background:"linear-gradient(90deg,#F59E0B,#EC4899)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}, "LDL"),
+          h("div", {style:{fontSize:7,color:"#3d4560",fontFamily:"'Share Tech Mono',monospace",letterSpacing:".18em"}}, "MULTI-AGENT")
+        )
+      ),
+      h("div", {style:{flex:1,overflow:"hidden",borderLeft:"1px solid #1a1f35",borderRight:"1px solid #1a1f35",padding:"0 12px",height:"100%",display:"flex",alignItems:"center"}},
+        h("div", {style:{display:"flex",gap:48,animation:"ticker 28s linear infinite",whiteSpace:"nowrap"}},
+          TICKERS.concat(TICKERS).map(function(msg,i){
+            return h("span",{key:i,style:{fontSize:9,color:"#4a5070",flexShrink:0,fontFamily:"'Share Tech Mono',monospace"}},msg);
+          })
+        )
+      ),
+      h("div", {style:{display:"flex",alignItems:"center",gap:16,flexShrink:0}},
+        [["에이전트",totalAgents,"#818CF8"],["자동화",32,"#10B981"],["작업중",totalRunning,"#F59E0B"]].map(function(x){
+          return h("div",{key:x[0],style:{textAlign:"center"}},
+            h("div",{style:{fontSize:15,fontWeight:900,fontFamily:"'Orbitron',sans-serif",color:x[2]}},x[1]),
+            h("div",{style:{fontSize:7,color:"#3d4560"}},x[0])
+          );
+        }),
+        h("div",{style:{background:"#0c1020",border:"1px solid #1a1f35",borderRadius:7,padding:"3px 9px",textAlign:"center"}},
+          h("div",{style:{fontSize:11,color:"#4a5280",fontWeight:700,fontFamily:"'Share Tech Mono',monospace"}},timeStr),
+          h("div",{style:{fontSize:7,color:"#3d4560"}},dateStr)
+        )
+      )
+    ),
+
+    // 메인 3분할
+    h("div", {style:{flex:1,display:"flex",overflow:"hidden"}},
+
+      // 좌 사이드바
+      h("div", {style:{width:196,flexShrink:0,borderRight:"1px solid #1a1f35",background:"#07090f",display:"flex",flexDirection:"column",overflow:"hidden"}},
+        h("div",{style:{padding:"8px 10px",borderBottom:"1px solid #1a1f35"}},
+          h("div",{style:{fontSize:8,color:"#3d4560",fontFamily:"'Share Tech Mono',monospace",letterSpacing:".12em"}},"DEPARTMENTS")
+        ),
+        h("div",{style:{flex:1,overflowY:"auto",padding:"4px"}},
+          teams.map(function(team){
+            var runCnt = team.agents.filter(function(a){return a.status==="running";}).length;
+            var isSel = (chatTeam&&chatTeam.id===team.id)||(selTeam&&selTeam.id===team.id&&rightMode==="agent");
+            return h("button",{key:team.id,onClick:function(){handleRoomClick(team);},style:{
+              width:"100%",display:"flex",alignItems:"center",gap:7,
+              padding:"6px 8px",borderRadius:8,marginBottom:3,
+              background:isSel?team.color+"14":"transparent",
+              border:"1px solid "+(isSel?team.color+"40":"transparent"),
+              textAlign:"left"
+            }},
+              h("div",{style:{width:24,height:24,borderRadius:6,flexShrink:0,background:team.color+"1c",border:"1px solid "+team.color+"30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}},team.icon),
+              h("div",{style:{flex:1,minWidth:0}},
+                h("div",{style:{fontSize:10,fontWeight:700,color:isSel?team.color:"#607090",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},team.name),
+                h("div",{style:{fontSize:8,color:"#3d4560"}},team.agents.length+"봇")
+              ),
+              runCnt > 0 && h("div",{style:{width:6,height:6,borderRadius:"50%",background:team.color,animation:"pulse .8s infinite",boxShadow:"0 0 5px "+team.color,flexShrink:0}})
+            );
+          })
+        ),
+        h("div",{style:{borderTop:"1px solid #1a1f35",padding:"8px 10px"}},
+          h("div",{style:{fontSize:7,color:"#3d4560",fontFamily:"'Share Tech Mono',monospace",letterSpacing:".1em",marginBottom:5}},"DATA FLOW"),
+          FLOWS.map(function(f,i){
+            var F = TEAMS.find(function(t){return t.id===f.from;});
+            var T = TEAMS.find(function(t){return t.id===f.to;});
+            var act = teams.find(function(t){return t.id===f.from;}).agents.some(function(a){return a.status==="running";});
+            return h("div",{key:i,style:{display:"flex",alignItems:"center",gap:3,marginBottom:4}},
+              h("span",{style:{fontSize:9,color:F.color,opacity:.65}},F.icon),
+              h("div",{style:{flex:1,height:1.5,borderRadius:2,background:act?("linear-gradient(90deg,"+f.color+","+T.color+")"):"#1a1f35",boxShadow:act?("0 0 4px "+f.color):"none",transition:"all .5s"}}),
+              h("span",{style:{fontSize:9,color:T.color,opacity:.65}},T.icon)
+            );
+          })
+        )
+      ),
+
+      // 중앙 사무실
+      h("div", {style:{flex:1,overflow:"auto",padding:"11px",background:"radial-gradient(ellipse at 50% 0%,#0d1128 0%,#05060f 65%)"}},
+        h("div",{style:{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,opacity:.025,backgroundImage:"linear-gradient(#4a5280 1px,transparent 1px),linear-gradient(90deg,#4a5280 1px,transparent 1px)",backgroundSize:"32px 32px"}}),
+        h("div",{style:{position:"relative",zIndex:1}},
+          h("div",{style:{marginBottom:10}},
+            h(OfficeRoom,{team:teams.find(function(t){return t.id==="exec";}),onAgentClick:handleAgentClick,selectedAgent:selAgent,onRoomClick:handleRoomClick,selected:(chatTeam&&chatTeam.id==="exec")||(selTeam&&selTeam.id==="exec"&&rightMode==="agent")})
+          ),
+          h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}},
+            ["marketing","plan","trade"].map(function(id){
+              return h(OfficeRoom,{key:id,team:teams.find(function(t){return t.id===id;}),onAgentClick:handleAgentClick,selectedAgent:selAgent,onRoomClick:handleRoomClick,selected:(chatTeam&&chatTeam.id===id)||(selTeam&&selTeam.id===id&&rightMode==="agent")});
+            })
+          ),
+          h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10}},
+            ["online","offline","finance","analytics"].map(function(id){
+              return h(OfficeRoom,{key:id,team:teams.find(function(t){return t.id===id;}),onAgentClick:handleAgentClick,selectedAgent:selAgent,onRoomClick:handleRoomClick,selected:(chatTeam&&chatTeam.id===id)||(selTeam&&selTeam.id===id&&rightMode==="agent")});
+            })
+          )
+        )
+      ),
+
+      // 우측 패널
+      h("div", {style:{width:275,flexShrink:0,background:"#07090f",display:"flex",flexDirection:"column",overflow:"hidden",borderLeft:"1px solid #1a1f35"}},
+        rightMode==="agent" && selAgent && selTeam
+          ? h(AgentPanel,{agent:selAgent,team:selTeam,onClose:function(){setRightMode(null);setSelAgent(null);},onRun:runAgent,running:running})
+          : rightMode==="chat" && chatTeam
+          ? h(ChatPanel,{team:chatTeam,onClose:function(){setRightMode(null);setChatTeam(null);}})
+          : h("div",{style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,padding:14}},
+              h("div",{style:{width:54,height:54,borderRadius:17,background:"#0c1020",border:"1px solid #1a1f35",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}},"🤖"),
+              h("div",{style:{textAlign:"center"}},
+                h("div",{style:{fontSize:11,color:"#3d4560"}},"에이전트 또는 팀방을"),
+                h("div",{style:{fontSize:11,color:"#3d4560"}},"클릭하세요")
+              ),
+              h("div",{style:{width:"100%",marginTop:8}},
+                h("div",{style:{fontSize:7,color:"#252845",marginBottom:4,fontFamily:"'Share Tech Mono',monospace",letterSpacing:".1em"}},"SYSTEM LOG"),
+                h("div",{style:{background:"#060610",border:"1px solid #1a1f35",borderRadius:8,padding:7,maxHeight:230,overflowY:"auto",minHeight:50}},
+                  logs.length===0
+                    ? h("div",{style:{fontSize:8,color:"#1e2040",textAlign:"center",padding:10,fontFamily:"'Share Tech Mono',monospace"}},"No events yet")
+                    : logs.map(function(l,i){
+                        return h("div",{key:i,style:{fontSize:8,color:l.c,marginBottom:2,display:"flex",gap:5,fontFamily:"'Share Tech Mono',monospace"}},
+                          h("span",{style:{color:"#252845",flexShrink:0}},l.t),
+                          h("span",null,l.msg)
+                        );
+                      })
+                )
+              )
+            )
+      )
+    ),
+
+    // 하단 상태바
+    h("div",{style:{height:22,flexShrink:0,background:"#060810",borderTop:"1px solid #1a1f35",display:"flex",alignItems:"center",padding:"0 12px",gap:0,fontSize:8,color:"#3d4560",fontFamily:"'Share Tech Mono',monospace"}},
+      h("span",{style:{marginRight:14}},"LDL MULTI-AGENT SYSTEM v3.0"),
+      h("span",{style:{marginRight:14,color:totalRunning>0?"#10B981":"#3d4560"}},
+        "● "+(totalRunning>0?(totalRunning+"개 에이전트 작동중"):"ALL STANDBY")
+      ),
+      h("span",null,"팀 "+teams.length+"개 · 에이전트 "+totalAgents+"개"),
+      h("div",{style:{flex:1}}),
+      h("span",{style:{color:"#252845"}},"CLAUDE API CONNECTED")
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(h(App, null));
+})();
+</script>
+</body>
+</html>
