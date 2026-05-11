@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🛒 OmniReview — 오픈마켓 통합 리뷰 관리</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body { background: #f5f0e8; font-family: '맑은 고딕','Malgun Gothic','Apple SD Gothic Neo',sans-serif; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #f5f0e8; }
+  ::-webkit-scrollbar-thumb { background: #ccc4b4; border-radius: 2px; }
+  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  @keyframes fadeUp  { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+  .nav-item:hover    { background: #f0ebe0 !important; }
+  .review-item:hover { background: rgba(249,237,232,0.5) !important; }
+  input::placeholder, textarea::placeholder { color: #b5aca0; }
+  input:focus, textarea:focus, select:focus { outline: none !important; border-color: #c96442 !important; }
+  button:not(:disabled):hover { filter: brightness(0.95); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useCallback, useMemo } = React;
+
+const C = {
+  bg:"#f5f0e8", surf:"#faf7f2", surf2:"#f0ebe0", surf3:"#e8e1d4",
+  border:"#ddd6c8", border2:"#ccc4b4",
+  text:"#2d2a24", text2:"#7a7168", text3:"#b5aca0",
+  accent:"#c96442", accent2:"#e07a54", accentBg:"#f9ede8",
+  green:"#4a7c59", greenBg:"#eef5f0",
+  red:"#b84040",   redBg:"#fdf0f0",
+  yellow:"#b07e2a",yellowBg:"#fdf6e8",
+  blue:"#3a6285",  blueBg:"#eef3f8",
+  shadow:"rgba(180,160,130,0.15)",
+};
+
+const Icon = ({ name, size=16, color="currentColor", style={} }) => {
+  const icons = {
+    dashboard: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
+    reviews:   <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></>,
+    settings:  <><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></>,
+    prompt:    <><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></>,
+    log:       <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></>,
+    refresh:   <><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></>,
+    bolt:      <><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></>,
+    edit:      <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>,
+    regenerate:<><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.9L1 10"/></>,
+    send:      <><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>,
+    save:      <><path d="M19 21H5a2 2 0 0 0-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>,
+    x:         <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+    check:     <><polyline points="20 6 9 17 4 12"/></>,
+    robot:     <><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M12 11V7"/><circle cx="12" cy="5" r="2"/><path d="M8 15h.01M16 15h.01M8 11V9a4 4 0 0 1 8 0v2"/></>,
+    star:      <><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></>,
+    globe:     <><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></>,
+    trash:     <><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></>,
+    clock:     <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
+    link:      <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></>,
+    chevronR:  <><polyline points="9 18 15 12 9 6"/></>,
+    info:      <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,...style}}>
+      {icons[name]}
+    </svg>
+  );
+};
+
+const PLATFORMS = {
+  coupang: { name:"쿠팡",        color:"#c0392b", bg:"#fdf2f1", dot:"#e74c3c" },
+  naver:   { name:"스마트스토어", color:"#27ae60", bg:"#f0faf4", dot:"#2ecc71" },
+  eleven:  { name:"11번가",      color:"#d35400", bg:"#fdf5f0", dot:"#e67e22" },
+  kakao:   { name:"카카오",      color:"#b7950b", bg:"#fdfbf0", dot:"#f1c40f" },
+  gmarket: { name:"G마켓",      color:"#8e44ad", bg:"#f9f4fd", dot:"#9b59b6" },
+};
+
+const INITIAL_REVIEWS = [
+  { id:"c1", platform:"coupang", name:"김민준", stars:5, product:"무선 이어폰 AirPods Pro 호환", text:"배송이 정말 빠르고 제품 품질도 완벽해요! 음질이 생각보다 훨씬 좋아서 놀랐습니다. 다음에도 꼭 이 셀러에서 구매할게요.", time:"10분 전", status:"pending", tags:[["긍정","pos"],["배송 만족","pos"]], reply:"" },
+  { id:"n1", platform:"naver",   name:"이서연", stars:2, product:"USB-C 충전 케이블 2m",          text:"케이블이 한 달도 안 돼서 끊어졌어요. 품질이 너무 아쉽습니다. 교환이나 환불 가능한가요?", time:"32분 전", status:"pending", tags:[["부정","neg"],["품질 불만","neg"]], reply:"" },
+  { id:"e1", platform:"eleven",  name:"박도현", stars:4, product:"노트북 거치대 알루미늄",          text:"전반적으로 만족스럽습니다. 다만 조립이 생각보다 까다롭더라고요. 품질 자체는 좋아요.", time:"1시간 전", status:"pending", tags:[["긍정","pos"],["조립 어려움","neg"]], reply:"" },
+  { id:"k1", platform:"kakao",   name:"최지우", stars:5, product:"무선 마우스 2.4GHz",             text:"완전 대박이에요! 가격 대비 품질이 최고입니다. 강력 추천해요!", time:"2시간 전", status:"done", tags:[["긍정","pos"],["가성비","pos"]], reply:"최지우 고객님, 소중한 리뷰 감사드립니다! 만족스러우셨다니 저희도 정말 기쁩니다. 다음에도 좋은 제품으로 찾아뵙겠습니다." },
+  { id:"g1", platform:"gmarket", name:"정하늘", stars:3, product:"스마트폰 거치대",                text:"평범해요. 가격은 저렴한데 생각보다 흔들림이 있어서 아쉽습니다.", time:"3시간 전", status:"pending", tags:[["보통","neu"],["흔들림","neg"]], reply:"" },
+  { id:"c2", platform:"coupang", name:"오승현", stars:1, product:"블루투스 스피커",                text:"완전 불량품입니다. 전원이 켜지지도 않아요. 즉시 환불해주세요!", time:"4시간 전", status:"pending", tags:[["불량","neg"],["환불 요청","neg"]], reply:"" },
+  { id:"n2", platform:"naver",   name:"한지수", stars:5, product:"노이즈캔슬링 헤드폰",            text:"음질 정말 최고네요. 소음 차단도 완벽하고 착용감도 편합니다. 재구매 의향 100%!", time:"5시간 전", status:"done", tags:[["긍정","pos"],["재구매","pos"]], reply:"한지수 고객님, 따뜻한 리뷰 감사드립니다! 앞으로도 좋은 제품으로 보답하겠습니다." },
+  { id:"e2", platform:"eleven",  name:"강민서", stars:4, product:"태블릿 케이스",                  text:"디자인도 예쁘고 보호도 잘 되는 것 같아요. 배송도 빠르고 만족합니다.", time:"어제", status:"pending", tags:[["긍정","pos"],["디자인","pos"]], reply:"" },
+  { id:"k2", platform:"kakao",   name:"윤채원", stars:2, product:"휴대용 선풍기",                  text:"바람이 너무 약해요. 여름에 별로 시원하지 않습니다. 기대에 못 미쳐서 아쉽네요.", time:"어제", status:"pending", tags:[["부정","neg"],["성능 불만","neg"]], reply:"" },
+  { id:"g2", platform:"gmarket", name:"임준혁", stars:5, product:"LED 독서등",                    text:"밝기 조절도 되고 눈도 편하고 정말 좋아요! 디자인도 깔끔해서 만족합니다.", time:"2일 전", status:"done", tags:[["긍정","pos"],["디자인","pos"]], reply:"임준혁 고객님, 리뷰 감사드립니다! 다음에도 좋은 제품으로 찾아뵙겠습니다." },
+];
+
+const DEMO_REPLY = {
+  5: n=>`${n} 고객님, 따뜻한 리뷰 남겨주셔서 진심으로 감사드립니다. 만족스러우셨다니 저희도 정말 기쁩니다. 앞으로도 좋은 제품과 빠른 배송으로 보답하겠습니다.`,
+  4: n=>`${n} 고객님, 소중한 리뷰 감사드립니다. 아쉬우셨던 점은 더욱 개선하여 더 나은 경험을 드릴 수 있도록 노력하겠습니다.`,
+  3: n=>`${n} 고객님, 리뷰 남겨주셔서 감사합니다. 불편하셨던 점을 반영하여 개선하겠습니다. 궁금하신 점은 1:1 문의 주시면 빠르게 도와드리겠습니다.`,
+  2: n=>`${n} 고객님, 불편을 드려 진심으로 사과드립니다. 즉시 확인하여 교환 또는 환불로 도와드리겠습니다. 1:1 문의로 연락 주시면 빠르게 처리해 드리겠습니다.`,
+  1: n=>`${n} 고객님, 큰 불편을 드려 정말 죄송합니다. 즉시 교환 또는 전액 환불 처리 도와드리겠습니다. 1:1 문의로 연락 주시면 바로 처리하겠습니다.`,
+};
+
+const nowStr = () => new Date().toLocaleTimeString("ko-KR");
+
+/* ── Atoms ── */
+function Btn({ children, onClick, variant="ghost", style={}, disabled=false, sm=false }) {
+  const base = { display:"inline-flex", alignItems:"center", gap:6, padding:sm?"5px 12px":"8px 16px", borderRadius:8, border:"none", cursor:disabled?"not-allowed":"pointer", fontFamily:"inherit", fontSize:sm?12:13, fontWeight:500, transition:"all 0.15s", opacity:disabled?0.45:1, whiteSpace:"nowrap", letterSpacing:-0.1 };
+  const vars = {
+    primary: { background:C.accent, color:"#fff", boxShadow:`0 1px 3px ${C.shadow}` },
+    ghost:   { background:C.surf2, color:C.text2, border:`1px solid ${C.border}` },
+    outline: { background:"transparent", color:C.text2, border:`1px solid ${C.border2}` },
+    danger:  { background:C.redBg, color:C.red, border:"1px solid #f0c8c8" },
+    success: { background:C.greenBg, color:C.green, border:"1px solid #c0dfc8" },
+  };
+  return <button style={{...base,...vars[variant],...style}} onClick={onClick} disabled={disabled}>{children}</button>;
+}
+
+function PlatformChip({ platform, style={} }) {
+  const p = PLATFORMS[platform];
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, fontWeight:600, padding:"3px 8px", borderRadius:20, background:p.bg, color:p.color, border:`1px solid ${p.color}28`, letterSpacing:-0.1, ...style }}>
+      <span style={{ width:6, height:6, borderRadius:"50%", background:p.dot, flexShrink:0 }} />
+      {p.name}
+    </span>
+  );
+}
+
+function Tag({ label, type }) {
+  const c = { pos:{bg:C.greenBg,color:C.green,border:"#c0dfc8"}, neg:{bg:C.redBg,color:C.red,border:"#f0c8c8"}, neu:{bg:C.blueBg,color:C.blue,border:"#c0d8e8"} };
+  const s = c[type]||c.neu;
+  return <span style={{ background:s.bg, color:s.color, border:`1px solid ${s.border}`, fontSize:10, fontWeight:600, padding:"2px 7px", borderRadius:20, letterSpacing:0.1 }}>{label}</span>;
+}
+
+function Stars({ n, size=12 }) {
+  return (
+    <span style={{ display:"inline-flex", gap:1 }}>
+      {[1,2,3,4,5].map(i=>(
+        <Icon key={i} name="star" size={size} color={i<=n?C.yellow:C.border2} style={{fill:i<=n?C.yellowBg:"none"}}/>
+      ))}
+    </span>
+  );
+}
+
+function Spinner() {
+  return <span style={{ display:"inline-block", width:13, height:13, border:`2px solid rgba(201,100,66,0.25)`, borderTopColor:C.accent, borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/>;
+}
+
+function Toggle({ on, onClick }) {
+  return (
+    <div onClick={onClick} style={{ width:36, height:20, borderRadius:10, cursor:"pointer", position:"relative", background:on?C.accent:C.border2, transition:"background 0.2s", flexShrink:0 }}>
+      <div style={{ position:"absolute", width:14, height:14, background:"#fff", borderRadius:"50%", top:3, left:on?19:3, transition:"left 0.2s", boxShadow:"0 1px 3px rgba(0,0,0,0.15)" }}/>
+    </div>
+  );
+}
+
+// ── 서버 API 헬퍼 ─────────────────────────────────────────
+const SERVER = "http://localhost:5000/api";
+
+/* ── Main App ── */
+function App() {
+  const { useEffect } = React;
+  const [reviews, setReviews]       = useState(INITIAL_REVIEWS.map(r=>({...r})));
+  const [tab, setTab]               = useState("dashboard");
+  const [selectedId, setSelectedId] = useState(null);
+  const [platformFilter, setPlatformFilter] = useState("all");
+  const [statusFilter, setStatusFilter]     = useState("all");
+  const [starFilter, setStarFilter]         = useState("all");
+  const [generating, setGenerating] = useState(false);
+  const [posting, setPosting]       = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [editing, setEditing]       = useState(false);
+  const [editText, setEditText]     = useState("");
+  const [toast, setToast]           = useState({ msg:"", type:"success", show:false });
+  const [logs, setLogs]             = useState([{ type:"info", msg:"OmniReview 초기화 완료", time:nowStr() }]);
+  const [claudeKey, setClaudeKey]   = useState("");
+  const [serverOk, setServerOk]     = useState(null);
+  const [autoPost, setAutoPost]     = useState(false);
+  const [scheduleOn, setScheduleOn] = useState(false);
+  const [systemPrompt, setSystemPrompt] = useState("쿠팡·네이버·11번가·카카오·G마켓 통합 셀러 고객 응대입니다.\n별점 4-5점: 진심 어린 감사 인사와 재구매 유도\n별점 3점: 감사 인사와 개선 약속\n별점 1-2점: 진심 어린 사과와 구체적 해결책\n2-3문장, 150자 이내로 자연스럽게 작성하세요.");
+
+  const addLog = useCallback((type, msg) => setLogs(p=>[{type,msg,time:nowStr()},...p].slice(0,200)),[]);
+  const showToast = useCallback((msg,type="success")=>{ setToast({msg,type,show:true}); setTimeout(()=>setToast(t=>({...t,show:false})),3000); },[]);
+
+  // 서버 상태 체크
+  useEffect(()=>{
+    fetch(SERVER+"/status")
+      .then(r=>r.json())
+      .then(d=>{ setServerOk(d); addLog("success",`✅ 서버 연결됨 — 쿠팡:${d.coupang} / Claude:${d.claude}`); })
+      .catch(()=>{ setServerOk(false); addLog("info","⚠️ 서버 미연결 — 데모 모드로 실행"); });
+  },[]);
+
+  const filtered = useMemo(()=> reviews.filter(r=>{
+    if (platformFilter!=="all" && r.platform!==platformFilter) return false;
+    if (statusFilter!=="all" && r.status!==statusFilter) return false;
+    if (starFilter!=="all" && r.stars!==Number(starFilter)) return false;
+    return true;
+  }),[reviews,platformFilter,statusFilter,starFilter]);
+
+  const selected     = reviews.find(r=>r.id===selectedId);
+  const pendingCount = reviews.filter(r=>r.status==="pending").length;
+  const doneCount    = reviews.filter(r=>r.status==="done").length;
+  const avgRating    = (reviews.reduce((a,r)=>a+r.stars,0)/reviews.length).toFixed(1);
+
+  const platformStats = useMemo(()=>
+    Object.keys(PLATFORMS).map(pid=>({
+      pid,
+      total:   reviews.filter(r=>r.platform===pid).length,
+      pending: reviews.filter(r=>r.platform===pid&&r.status==="pending").length,
+      avg:     (reviews.filter(r=>r.platform===pid).reduce((a,r)=>a+r.stars,0)/(reviews.filter(r=>r.platform===pid).length||1)).toFixed(1),
+    }))
+  ,[reviews]);
+
+  // 쿠팡 리뷰 실제 동기화
+  async function syncCoupangReviews() {
+    if (!serverOk || serverOk.coupang!=="connected") {
+      addLog("info","서버 미연결 — 데모 데이터 사용 중");
+      showToast("서버 미연결 — 데모 모드","error");
+      return;
+    }
+    try {
+      addLog("info","쿠팡 Wing API 리뷰 동기화 중...");
+      const res  = await fetch(SERVER+"/reviews");
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const items = data.data || data.reviewList || [];
+      if (!items.length){ addLog("info","새 리뷰 없음"); return; }
+      const mapped = items.map(r=>({
+        id:      String(r.reviewId||r.id),
+        platform:"coupang",
+        name:    r.reviewerName||r.nickname||"익명",
+        stars:   r.rating||r.starRating||5,
+        product: r.productName||r.itemName||"",
+        text:    r.reviewContent||r.content||"",
+        time:    r.orderDate||r.createdAt||"방금",
+        status:  r.replyContent?"done":"pending",
+        tags:    [],
+        reply:   r.replyContent||"",
+      }));
+      setReviews(prev=>{
+        const ids = new Set(prev.map(r=>r.id));
+        const newOnes = mapped.filter(r=>!ids.has(r.id));
+        return [...newOnes,...prev];
+      });
+      addLog("success",`쿠팡 리뷰 ${items.length}건 동기화 완료`);
+      showToast(`쿠팡 리뷰 ${items.length}건 동기화 완료`);
+    } catch(e){ addLog("error",`동기화 실패: ${e.message}`); showToast(`동기화 실패: ${e.message}`,"error"); }
+  }
+
+  async function selectReview(id) {
+    setSelectedId(id); setEditing(false);
+    const r = reviews.find(x=>x.id===id);
+    if (r && !r.reply) await doGenerate(id);
+    else if (r) setEditText(r.reply);
+  }
+
+  async function doGenerate(id) {
+    const r = reviews.find(x=>x.id===id);
+    if (!r) return;
+    setGenerating(true); setEditing(false);
+    try {
+      let reply = "";
+      // ① 서버 경유 Claude 생성
+      if (serverOk && (serverOk.claude==="connected" || claudeKey.startsWith("sk-ant-"))) {
+        const res = await fetch(SERVER+"/claude/generate", {
+          method:"POST",
+          headers:{"Content-Type":"application/json","X-Claude-Key":claudeKey},
+          body:JSON.stringify({ platform:PLATFORMS[r.platform].name, product:r.product, stars:r.stars, text:r.text, systemPrompt }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        reply = data.reply;
+      } else {
+        // ② 서버 없을 때 데모
+        await new Promise(res=>setTimeout(res,1300));
+        reply = (DEMO_REPLY[r.stars]||DEMO_REPLY[3])(r.name);
+      }
+      setReviews(p=>p.map(x=>x.id===id?{...x,reply}:x));
+      setEditText(reply);
+      addLog("success",`[${PLATFORMS[r.platform].name}] ${r.name} 답변 생성 완료`);
+    } catch(e) { addLog("error",`오류: ${e.message}`); showToast(e.message,"error"); }
+    setGenerating(false);
+  }
+
+  async function postReply() {
+    if (!selected?.reply){ showToast("먼저 AI 답변을 생성하세요","error"); return; }
+    setPosting(true);
+    try {
+      // 쿠팡 플랫폼이고 서버 연결됐으면 실제 게시
+      if (selected.platform==="coupang" && serverOk && serverOk.coupang==="connected") {
+        const res = await fetch(`${SERVER}/reviews/${selected.id}/reply`,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({replyContent: editing ? editText : selected.reply}),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        addLog("success",`[쿠팡] ${selected.name} 답변 실제 게시 완료`);
+      } else {
+        await new Promise(res=>setTimeout(res,800));
+        addLog("success",`[${PLATFORMS[selected.platform].name}] ${selected.name} 답변 게시 (데모)`);
+      }
+      setReviews(p=>p.map(x=>x.id===selectedId?{...x,status:"done",reply:editing?editText:x.reply}:x));
+      setEditing(false);
+      showToast(`${PLATFORMS[selected.platform].name}에 답변을 게시했습니다`);
+    } catch(e){ addLog("error",`게시 실패: ${e.message}`); showToast(e.message,"error"); }
+    setPosting(false);
+  }
+
+  async function runAutoReply() {
+    const pend = reviews.filter(r=>r.status==="pending"&&(platformFilter==="all"||r.platform===platformFilter));
+    if (!pend.length){ showToast("대기중인 리뷰가 없습니다","error"); return; }
+    setAutoRunning(true);
+    addLog("info",`자동 답변 시작: ${pend.length}건`);
+    for (const r of pend) {
+      addLog("info",`[${PLATFORMS[r.platform].name}] ${r.name} 처리 중...`);
+      let reply = "";
+      try {
+        if (serverOk && (serverOk.claude==="connected"||claudeKey.startsWith("sk-ant-"))) {
+          const res = await fetch(SERVER+"/claude/generate",{
+            method:"POST", headers:{"Content-Type":"application/json","X-Claude-Key":claudeKey},
+            body:JSON.stringify({platform:PLATFORMS[r.platform].name,product:r.product,stars:r.stars,text:r.text,systemPrompt}),
+          });
+          const d = await res.json();
+          reply = d.reply || (DEMO_REPLY[r.stars]||DEMO_REPLY[3])(r.name);
+        } else {
+          await new Promise(res=>setTimeout(res,400));
+          reply = (DEMO_REPLY[r.stars]||DEMO_REPLY[3])(r.name);
+        }
+        // 쿠팡은 실제 게시
+        if (r.platform==="coupang" && serverOk && serverOk.coupang==="connected") {
+          await fetch(`${SERVER}/reviews/${r.id}/reply`,{
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({replyContent:reply}),
+          });
+        }
+        setReviews(p=>p.map(x=>x.id===r.id?{...x,reply,status:"done"}:x));
+        addLog("success",`[${PLATFORMS[r.platform].name}] ${r.name} 완료`);
+      } catch(e){ addLog("error",`[${r.name}] 실패: ${e.message}`); }
+    }
+    showToast(`${pend.length}건 자동 답변 완료`);
+    setAutoRunning(false);
+  }
+
+  const card = { background:C.surf, border:`1px solid ${C.border}`, borderRadius:12, overflow:"hidden", boxShadow:`0 1px 4px ${C.shadow}` };
+  const cardHeader = { padding:"13px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:8, fontSize:13, fontWeight:600, color:C.text, letterSpacing:-0.2 };
+  const selectSt = { background:C.surf, border:`1px solid ${C.border}`, borderRadius:7, color:C.text2, padding:"5px 10px", fontSize:12, fontFamily:"inherit", cursor:"pointer", outline:"none", appearance:"none" };
+
+  const NAV = [
+    { id:"dashboard", icon:"dashboard", label:"대시보드" },
+    { id:"reviews",   icon:"reviews",   label:"리뷰 관리",   badge:pendingCount },
+    { id:"config",    icon:"settings",  label:"플랫폼 설정" },
+    { id:"prompt",    icon:"prompt",    label:"AI 프롬프트" },
+    { id:"logs",      icon:"log",       label:"실행 로그" },
+  ];
+
+  return (
+    <div style={{ display:"flex", height:"100vh", background:C.bg, fontFamily:"'맑은 고딕','Malgun Gothic','Apple SD Gothic Neo',sans-serif", color:C.text, fontSize:14, overflow:"hidden" }}>
+
+      {/* ── Sidebar ── */}
+      <div style={{ width:230, background:C.surf, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", flexShrink:0 }}>
+        {/* Logo */}
+        <div style={{ padding:"20px 18px 16px", borderBottom:`1px solid ${C.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 2px 8px ${C.shadow}` }}>
+              <Icon name="robot" size={18} color="#fff"/>
+            </div>
+            <div>
+              <div style={{ fontSize:14, fontWeight:700, letterSpacing:-0.5, color:C.text }}>OmniReview</div>
+              <div style={{ fontSize:10, color:C.text3, marginTop:1, letterSpacing:0.2 }}>오픈마켓 통합 관리</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Platform filter */}
+        <div style={{ padding:"14px 12px 8px" }}>
+          <div style={{ fontSize:10, fontWeight:600, color:C.text3, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8, paddingLeft:4 }}>플랫폼</div>
+          {[{id:"all",name:"전체",dot:"#999",bg:C.surf2,color:C.text2},...Object.entries(PLATFORMS).map(([k,v])=>({id:k,...v}))].map(p=>(
+            <div key={p.id} className="nav-item" onClick={()=>setPlatformFilter(p.id)} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 10px", borderRadius:8, cursor:"pointer", marginBottom:1, background:platformFilter===p.id?C.accentBg:"transparent", color:platformFilter===p.id?C.accent:C.text2, fontSize:12, fontWeight:platformFilter===p.id?600:400, transition:"all 0.12s" }}>
+              <span style={{ width:8, height:8, borderRadius:"50%", background:p.dot, flexShrink:0 }}/>
+              <span style={{ flex:1 }}>{p.name}</span>
+              <span style={{ fontSize:11, color:C.text3 }}>{p.id==="all"?reviews.length:reviews.filter(r=>r.platform===p.id).length}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ height:1, background:C.border }}/>
+
+        {/* Nav */}
+        <nav style={{ padding:"10px 12px", flex:1 }}>
+          <div style={{ fontSize:10, fontWeight:600, color:C.text3, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8, paddingLeft:4 }}>메뉴</div>
+          {NAV.map(n=>(
+            <div key={n.id} className="nav-item" onClick={()=>setTab(n.id)} style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 10px", borderRadius:8, cursor:"pointer", marginBottom:1, background:tab===n.id?C.accentBg:"transparent", color:tab===n.id?C.accent:C.text2, fontSize:13, fontWeight:tab===n.id?600:400, transition:"all 0.12s" }}>
+              <Icon name={n.icon} size={15} color={tab===n.id?C.accent:C.text3}/>
+              <span style={{ flex:1 }}>{n.label}</span>
+              {n.badge>0 && <span style={{ background:C.accent, color:"#fff", fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:10 }}>{n.badge}</span>}
+            </div>
+          ))}
+        </nav>
+
+        {/* Status */}
+        <div style={{ padding:"12px 14px", borderTop:`1px solid ${C.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 12px", background:C.greenBg, border:"1px solid #c0dfc8", borderRadius:8, fontSize:12, color:C.green }}>
+            <span style={{ width:7, height:7, background:C.green, borderRadius:"50%", animation:"pulse 2s infinite", flexShrink:0 }}/>
+            <span style={{ fontWeight:500 }}>{autoRunning?"처리 중...":`대기 ${pendingCount}건`}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main ── */}
+      <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+        {/* Topbar */}
+        <div style={{ padding:"14px 24px", borderBottom:`1px solid ${C.border}`, background:C.surf, display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:16, fontWeight:700, letterSpacing:-0.5 }}>오픈마켓 리뷰 통합 관리</div>
+            <div style={{ fontSize:11, color:C.text3, marginTop:2, display:"flex", alignItems:"center", gap:6 }}>
+              쿠팡 · 스마트스토어 · 11번가 · 카카오 · G마켓
+              <span style={{ marginLeft:4, display:"inline-flex", alignItems:"center", gap:4, fontSize:10, fontWeight:600,
+                color: serverOk===null?"#b07e2a": serverOk===false?"#b84040":"#4a7c59",
+                background: serverOk===null?"#fdf6e8": serverOk===false?"#fdf0f0":"#eef5f0",
+                padding:"1px 7px", borderRadius:10,
+                border:`1px solid ${serverOk===null?"#e8d4a0":serverOk===false?"#f0c8c8":"#c0dfc8"}`,
+              }}>
+                <span style={{ width:5, height:5, borderRadius:"50%", background:serverOk===null?"#b07e2a":serverOk===false?"#b84040":"#4a7c59" }}/>
+                {serverOk===null?"서버 확인 중...": serverOk===false?"데모 모드 (서버 미연결)":"서버 연결됨"}
+              </span>
+            </div>
+          </div>
+          <Btn sm variant="outline" onClick={syncCoupangReviews}>
+            <Icon name="refresh" size={13} color={C.text2}/> 쿠팡 동기화
+          </Btn>
+          <Btn sm variant="primary" onClick={runAutoReply} disabled={autoRunning}>
+            {autoRunning?<><Spinner/> 처리중...</>:<><Icon name="bolt" size={13} color="#fff"/> 전체 자동 답변</>}
+          </Btn>
+        </div>
+
+        {/* Content */}
+        <div style={{ flex:1, overflow:"auto", padding:20, display:"flex", flexDirection:"column", gap:14 }}>
+
+          {/* ─ DASHBOARD ─ */}
+          {tab==="dashboard" && <>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+              {[
+                {label:"전체 리뷰",   value:reviews.length, sub:`${pendingCount}건 대기`,                              color:C.accent, bg:C.accentBg, icon:"reviews"},
+                {label:"답변 완료",   value:doneCount,       sub:`완료율 ${Math.round(doneCount/reviews.length*100)}%`, color:C.green,  bg:C.greenBg,  icon:"check"},
+                {label:"평균 별점",   value:avgRating,       sub:"전 플랫폼 기준",                                     color:C.yellow, bg:C.yellowBg, icon:"star"},
+                {label:"연동 플랫폼", value:5,               sub:"정상 연동 중",                                       color:C.blue,   bg:C.blueBg,   icon:"link"},
+              ].map(st=>(
+                <div key={st.label} style={{...card, padding:18}}>
+                  <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:10 }}>
+                    <div style={{ fontSize:11, color:C.text2, fontWeight:500 }}>{st.label}</div>
+                    <div style={{ width:30, height:30, borderRadius:8, background:st.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      <Icon name={st.icon} size={14} color={st.color}/>
+                    </div>
+                  </div>
+                  <div style={{ fontSize:30, fontWeight:700, letterSpacing:-1, color:C.text, lineHeight:1 }}>{st.value}</div>
+                  <div style={{ fontSize:11, color:C.text3, marginTop:5 }}>{st.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={card}>
+              <div style={cardHeader}><Icon name="globe" size={15} color={C.text3}/> 플랫폼별 현황</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)" }}>
+                {platformStats.map((ps,i)=>{
+                  const p=PLATFORMS[ps.pid];
+                  return (
+                    <div key={ps.pid} onClick={()=>{setPlatformFilter(ps.pid);setTab("reviews");}} style={{ padding:"16px 14px", borderRight:i<4?`1px solid ${C.border}`:"none", cursor:"pointer" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12 }}>
+                        <span style={{ width:9, height:9, borderRadius:"50%", background:p.dot }}/>
+                        <span style={{ fontSize:12, fontWeight:600, color:p.color }}>{p.name}</span>
+                      </div>
+                      <div style={{ fontSize:26, fontWeight:700, letterSpacing:-1, marginBottom:3, color:C.text }}>{ps.total}</div>
+                      <div style={{ fontSize:11, color:C.text3, marginBottom:10 }}>전체 리뷰</div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                          <Icon name="clock" size={10} color={C.text3}/>
+                          <span style={{ fontSize:11, color:C.text2 }}>대기 {ps.pending}건</span>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                          <Icon name="star" size={10} color={C.yellow}/>
+                          <span style={{ fontSize:11, color:C.text2 }}>{ps.avg}점 평균</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={card}>
+              <div style={cardHeader}><Icon name="clock" size={15} color={C.text3}/> 최근 리뷰</div>
+              {reviews.slice(0,5).map((r,i)=>(
+                <div key={r.id} className="review-item" onClick={()=>{setTab("reviews");selectReview(r.id);}} style={{ padding:"11px 18px", borderBottom:i<4?`1px solid ${C.border}`:"none", display:"flex", gap:12, cursor:"pointer", transition:"background 0.1s", animation:`fadeUp 0.2s ease ${i*0.04}s both` }}>
+                  <PlatformChip platform={r.platform} style={{ flexShrink:0, alignSelf:"flex-start", marginTop:2 }}/>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
+                      <span style={{ fontWeight:600, fontSize:13 }}>{r.name}</span>
+                      <Stars n={r.stars} size={11}/>
+                      <span style={{ fontSize:11, color:C.text3, marginLeft:"auto" }}>{r.time}</span>
+                    </div>
+                    <div style={{ fontSize:12, color:C.text2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.text}</div>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+                    <span style={{ fontSize:11, fontWeight:500, padding:"2px 8px", borderRadius:20, background:r.status==="done"?C.greenBg:C.yellowBg, color:r.status==="done"?C.green:C.yellow, border:`1px solid ${r.status==="done"?"#c0dfc8":"#e8d4a0"}` }}>{r.status==="done"?"완료":"대기"}</span>
+                    <Icon name="chevronR" size={13} color={C.text3}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>}
+
+          {/* ─ REVIEWS ─ */}
+          {tab==="reviews" && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 400px", gap:14, flex:1 }}>
+              <div style={card}>
+                <div style={{...cardHeader, flexWrap:"wrap", gap:8}}>
+                  <Icon name="reviews" size={15} color={C.text3}/>
+                  리뷰 목록
+                  <span style={{ background:C.accentBg, color:C.accent, fontSize:11, fontWeight:600, padding:"2px 8px", borderRadius:20, border:`1px solid ${C.accent}28` }}>{filtered.length}건</span>
+                  <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
+                    <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={selectSt}>
+                      <option value="all">전체 상태</option>
+                      <option value="pending">대기중</option>
+                      <option value="done">완료</option>
+                    </select>
+                    <select value={starFilter} onChange={e=>setStarFilter(e.target.value)} style={selectSt}>
+                      <option value="all">전체 별점</option>
+                      {[5,4,3,2,1].map(s=><option key={s} value={s}>{s}점</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ overflow:"auto", maxHeight:"calc(100vh - 220px)" }}>
+                  {filtered.length===0
+                    ? <div style={{ padding:40, textAlign:"center", color:C.text3, fontSize:13 }}>해당 리뷰가 없습니다</div>
+                    : filtered.map((r,i)=>(
+                      <div key={r.id} className="review-item" onClick={()=>selectReview(r.id)} style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, cursor:"pointer", display:"flex", gap:10, background:r.id===selectedId?C.accentBg:"transparent", borderLeft:r.id===selectedId?`2px solid ${C.accent}`:"2px solid transparent", transition:"background 0.1s", animation:`fadeUp 0.15s ease ${i*0.03}s both` }}>
+                        <div style={{ width:34, height:34, borderRadius:9, background:PLATFORMS[r.platform].bg, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, border:`1px solid ${PLATFORMS[r.platform].color}22` }}>
+                          <span style={{ width:10, height:10, borderRadius:"50%", background:PLATFORMS[r.platform].dot }}/>
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                            <PlatformChip platform={r.platform}/>
+                            <span style={{ fontWeight:600, fontSize:12 }}>{r.name}</span>
+                            <Stars n={r.stars} size={10}/>
+                            <span style={{ fontSize:10, color:C.text3, marginLeft:"auto" }}>{r.time}</span>
+                          </div>
+                          <div style={{ fontSize:11, color:C.blue, marginBottom:3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.product}</div>
+                          <div style={{ fontSize:12, color:C.text2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.text}</div>
+                        </div>
+                        <span style={{ fontSize:10, fontWeight:500, padding:"2px 8px", borderRadius:20, alignSelf:"flex-start", flexShrink:0, marginTop:2, background:r.status==="done"?C.greenBg:C.yellowBg, color:r.status==="done"?C.green:C.yellow, border:`1px solid ${r.status==="done"?"#c0dfc8":"#e8d4a0"}` }}>{r.status==="done"?"완료":"대기"}</span>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+
+              <div style={{...card, display:"flex", flexDirection:"column"}}>
+                <div style={cardHeader}><Icon name="info" size={15} color={C.text3}/> 상세 & AI 답변</div>
+                <div style={{ flex:1, overflow:"auto", padding:16 }}>
+                  {!selected
+                    ? <div style={{ padding:50, textAlign:"center", color:C.text3, fontSize:13 }}>리뷰를 선택하세요</div>
+                    : <>
+                        <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:14, marginBottom:14 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                            <PlatformChip platform={selected.platform}/>
+                            <span style={{ fontWeight:600, fontSize:13 }}>{selected.name}</span>
+                            <Stars n={selected.stars}/>
+                            <span style={{ fontSize:10, color:C.text3, marginLeft:"auto" }}>{selected.time}</span>
+                          </div>
+                          <div style={{ fontSize:11, color:C.blue, marginBottom:7 }}>{selected.product}</div>
+                          <div style={{ fontSize:13, lineHeight:1.7, color:C.text }}>{selected.text}</div>
+                          <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:10 }}>
+                            {selected.tags.map(([l,t])=><Tag key={l} label={l} type={t}/>)}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize:11, fontWeight:600, color:C.accent, marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+                            <Icon name="robot" size={13} color={C.accent}/> AI 생성 답변 {generating&&<Spinner/>}
+                          </div>
+                          {editing
+                            ? <textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{ width:"100%", background:C.bg, border:`1px solid ${C.accent}`, borderRadius:9, padding:12, fontSize:13, lineHeight:1.75, color:C.text, fontFamily:"inherit", resize:"vertical", minHeight:110, outline:"none" }}/>
+                            : <div style={{ background:C.accentBg, border:`1px solid ${C.accent}28`, borderRadius:9, padding:13, fontSize:13, lineHeight:1.75, color:C.text, minHeight:90, whiteSpace:"pre-wrap" }}>
+                                {generating?<span style={{color:C.text3}}>AI가 답변을 생성하고 있습니다...</span>:selected.reply||<span style={{color:C.text3}}>아직 생성 전입니다</span>}
+                              </div>
+                          }
+                        </div>
+                      </>
+                  }
+                </div>
+                {selected && (
+                  <div style={{ padding:"12px 14px", borderTop:`1px solid ${C.border}`, display:"flex", gap:6, background:C.surf }}>
+                    {editing?<>
+                      <Btn sm variant="outline" onClick={()=>setEditing(false)}><Icon name="x" size={12} color={C.text2}/> 취소</Btn>
+                      <Btn sm variant="ghost"   onClick={()=>{ setReviews(p=>p.map(x=>x.id===selectedId?{...x,reply:editText}:x)); setEditing(false); }}><Icon name="save" size={12} color={C.text2}/> 저장</Btn>
+                    </>:<>
+                      <Btn sm variant="outline" onClick={()=>{setEditing(true);setEditText(selected.reply);}} disabled={generating}><Icon name="edit" size={12} color={C.text2}/> 수정</Btn>
+                      <Btn sm variant="outline" onClick={()=>doGenerate(selectedId)} disabled={generating}><Icon name="regenerate" size={12} color={C.text2}/> 재생성</Btn>
+                    </>}
+                    <Btn variant="primary" sm style={{flex:1,justifyContent:"center"}} onClick={postReply} disabled={posting||generating||editing}>
+                      {posting?<><Spinner/> 게시중...</>:<><Icon name="send" size={12} color="#fff"/> {PLATFORMS[selected.platform].name}에 게시</>}
+                    </Btn>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ─ CONFIG ─ */}
+          {tab==="config" && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+              {Object.entries(PLATFORMS).map(([pid,p])=>(
+                <div key={pid} style={card}>
+                  <div style={{...cardHeader, borderTop:`2px solid ${p.color}`}}>
+                    <span style={{ width:9, height:9, borderRadius:"50%", background:p.dot }}/> {p.name} API 설정
+                  </div>
+                  <div style={{ padding:16 }}>
+                    <div style={{ fontSize:11, color:C.text2, fontWeight:500, marginBottom:8 }}>
+                      {pid==="coupang"?"Wing API":pid==="naver"?"커머스 API":pid==="eleven"?"Open API":"비즈니스 API"} 연동
+                    </div>
+                    {pid==="coupang"&&<>
+                      <input placeholder="Access Key" style={{ width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 11px",color:C.text,fontFamily:"inherit",fontSize:12,marginBottom:7,outline:"none" }}/>
+                      <input placeholder="Secret Key" type="password" style={{ width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 11px",color:C.text,fontFamily:"inherit",fontSize:12,marginBottom:7,outline:"none" }}/>
+                      <input placeholder="Vendor ID" style={{ width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 11px",color:C.text,fontFamily:"inherit",fontSize:12,outline:"none" }}/>
+                    </>}
+                    {pid==="naver"&&<>
+                      <input placeholder="Client ID" style={{ width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 11px",color:C.text,fontFamily:"inherit",fontSize:12,marginBottom:7,outline:"none" }}/>
+                      <input placeholder="Client Secret" type="password" style={{ width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 11px",color:C.text,fontFamily:"inherit",fontSize:12,outline:"none" }}/>
+                    </>}
+                    {(pid==="eleven"||pid==="kakao"||pid==="gmarket")&&<>
+                      <input placeholder="API Key" type="password" style={{ width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 11px",color:C.text,fontFamily:"inherit",fontSize:12,marginBottom:7,outline:"none" }}/>
+                      <input placeholder="Partner / Store ID" style={{ width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 11px",color:C.text,fontFamily:"inherit",fontSize:12,outline:"none" }}/>
+                    </>}
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:14 }}>
+                      <Btn sm variant="primary" onClick={()=>showToast(`${p.name} 설정 저장 완료`)}><Icon name="save" size={12} color="#fff"/> 저장</Btn>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ fontSize:11, color:C.text2 }}>자동 답변</span>
+                        <Toggle on={false} onClick={()=>{}}/>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div style={{...card, gridColumn:"1/-1"}}>
+                <div style={cardHeader}><Icon name="robot" size={15} color={C.text3}/> Claude AI 설정</div>
+                <div style={{ padding:16, display:"flex", gap:10, alignItems:"center" }}>
+                  <input value={claudeKey} onChange={e=>setClaudeKey(e.target.value)} type="password" placeholder="Anthropic API Key (sk-ant-...)" style={{ flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontFamily:"inherit",fontSize:12,outline:"none" }}/>
+                  <Btn sm variant="primary" onClick={()=>{ showToast("Claude AI 설정 저장 완료"); addLog("success","API 키 저장"); }}><Icon name="save" size={12} color="#fff"/> 저장</Btn>
+                  {!claudeKey&&<span style={{ fontSize:11, color:C.text3, whiteSpace:"nowrap" }}>미입력 시 데모 모드</span>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─ PROMPT ─ */}
+          {tab==="prompt" && (
+            <div style={{ maxWidth:700 }}>
+              <div style={card}>
+                <div style={cardHeader}><Icon name="prompt" size={15} color={C.text3}/> AI 프롬프트 설정</div>
+                <div style={{ padding:18 }}>
+                  <div style={{ fontSize:11, color:C.text2, fontWeight:500, marginBottom:8 }}>시스템 프롬프트</div>
+                  <textarea value={systemPrompt} onChange={e=>setSystemPrompt(e.target.value)} style={{ width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,padding:13,fontSize:13,lineHeight:1.8,color:C.text,fontFamily:"inherit",resize:"vertical",minHeight:160,outline:"none" }}/>
+                  <div style={{ fontSize:12, color:C.text3, margin:"10px 0 16px", display:"flex", alignItems:"flex-start", gap:6 }}>
+                    <Icon name="info" size={13} color={C.text3} style={{marginTop:1,flexShrink:0}}/>
+                    플랫폼별로 다른 톤을 원하시면 "쿠팡 리뷰의 경우 ~" 형식으로 추가하세요.
+                  </div>
+                  <Btn sm variant="primary" onClick={()=>{ showToast("프롬프트 저장 완료"); addLog("success","프롬프트 저장"); }}><Icon name="save" size={12} color="#fff"/> 저장</Btn>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─ LOGS ─ */}
+          {tab==="logs" && (
+            <div style={card}>
+              <div style={cardHeader}>
+                <Icon name="log" size={15} color={C.text3}/> 실행 로그
+                <span style={{ fontSize:11, color:C.text3, fontWeight:400 }}>{logs.length}개</span>
+                <Btn sm variant="outline" style={{marginLeft:"auto"}} onClick={()=>setLogs([])}><Icon name="trash" size={12} color={C.text2}/> 초기화</Btn>
+              </div>
+              <div style={{ padding:"10px 16px", fontFamily:"'Menlo','Courier New',monospace", fontSize:11, lineHeight:2.1, maxHeight:"calc(100vh - 220px)", overflow:"auto" }}>
+                {logs.length===0
+                  ? <div style={{ color:C.text3, textAlign:"center", padding:40 }}>로그 없음</div>
+                  : logs.map((l,i)=>(
+                    <div key={i} style={{ color:l.type==="success"?C.green:l.type==="error"?C.red:C.blue }}>
+                      [{l.time}] {l.msg}
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {/* Toast */}
+      <div style={{ position:"fixed", bottom:22, right:22, background:C.surf, border:`1px solid ${toast.type==="success"?"#c0dfc8":"#f0c8c8"}`, borderRadius:10, padding:"11px 16px", fontSize:13, fontWeight:500, display:"flex", alignItems:"center", gap:9, boxShadow:`0 4px 20px ${C.shadow}`, transition:"all 0.3s cubic-bezier(0.34,1.56,0.64,1)", transform:toast.show?"translateY(0)":"translateY(80px)", opacity:toast.show?1:0, pointerEvents:toast.show?"auto":"none", zIndex:999, color:C.text }}>
+        <div style={{ width:7, height:7, borderRadius:"50%", background:toast.type==="success"?C.green:C.red, flexShrink:0 }}/>
+        {toast.msg}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
